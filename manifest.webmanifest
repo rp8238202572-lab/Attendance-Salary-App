@@ -1,9 +1,26 @@
 {
   "name": "Attendance & Salary",
   "short_name": "Attendance",
+  "id": "./",
   "start_url": "./",
+  "scope": "./",
   "display": "standalone",
   "background_color": "#f4f6fa",
   "theme_color": "#111827",
-  "orientation": "portrait"
+  "orientation": "portrait",
+  "description": "Offline attendance and salary tracker",
+  "icons": [
+    {
+      "src": "./icon.svg",
+      "type": "image/svg+xml",
+      "sizes": "192x192",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "./icon.svg",
+      "type": "image/svg+xml",
+      "sizes": "512x512",
+      "purpose": "any maskable"
+    }
+  ]
 }
