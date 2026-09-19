@@ -1,16 +1,16 @@
 {
-  "name":"Intraday Scanner",
-  "short_name":"Intraday",
-  "id":"./",
-  "start_url":"./",
-  "scope":"./",
+  "name":"Intraday Scanner - Market",
+  "short_name":"Intraday Scanner",
+  "id":"/Attendance-Salary-App/intraday/",
+  "start_url":"/Attendance-Salary-App/intraday/?source=app",
+  "scope":"/Attendance-Salary-App/intraday/",
   "display":"standalone",
   "background_color":"#07130f",
   "theme_color":"#07130f",
   "orientation":"portrait",
   "description":"Rule-based NSE intraday setup scanner",
   "icons":[
-    {"src":"./icon.svg","sizes":"192x192","type":"image/svg+xml","purpose":"any maskable"},
-    {"src":"./icon.svg","sizes":"512x512","type":"image/svg+xml","purpose":"any maskable"}
+    {"src":"/Attendance-Salary-App/intraday/icon.svg","sizes":"192x192","type":"image/svg+xml","purpose":"any maskable"},
+    {"src":"/Attendance-Salary-App/intraday/icon.svg","sizes":"512x512","type":"image/svg+xml","purpose":"any maskable"}
   ]
 }
