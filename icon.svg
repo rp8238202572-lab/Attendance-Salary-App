@@ -1,6 +1,20 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
-<rect width="512" height="512" rx="96" fill="#111827"/>
-<rect x="96" y="112" width="320" height="320" rx="48" fill="none" stroke="#fff" stroke-width="24"/>
-<rect x="176" y="72" width="160" height="64" rx="24" fill="#fff"/>
-<path d="M160 280l72 72 120-136" fill="none" stroke="#22c55e" stroke-width="32" stroke-linecap="round" stroke-linejoin="round"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+<defs>
+ <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#f8fbff"/><stop offset="1" stop-color="#dbeafe"/></linearGradient>
+ <linearGradient id="blue" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#3b82f6"/><stop offset="1" stop-color="#1d4ed8"/></linearGradient>
+ <linearGradient id="wave" x1="0" y1="0" x2="1" y2="0"><stop stop-color="#38bdf8"/><stop offset="1" stop-color="#1d4ed8"/></linearGradient>
+ <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%"><feDropShadow dx="0" dy="12" stdDeviation="12" flood-opacity=".22"/></filter>
+</defs>
+<rect x="18" y="18" width="476" height="476" rx="108" fill="url(#bg)" filter="url(#shadow)"/>
+<rect x="106" y="116" width="300" height="310" rx="42" fill="url(#blue)"/>
+<rect x="124" y="166" width="264" height="244" rx="28" fill="#f8fafc"/>
+<rect x="145" y="72" width="48" height="112" rx="24" fill="#173f8f"/>
+<rect x="319" y="72" width="48" height="112" rx="24" fill="#173f8f"/>
+<g fill="#bfdbfe"><rect x="155" y="204" width="48" height="48" rx="9"/><rect x="229" y="204" width="48" height="48" rx="9"/><rect x="303" y="204" width="48" height="48" rx="9"/><rect x="155" y="276" width="48" height="48" rx="9"/><rect x="303" y="276" width="48" height="48" rx="9"/></g>
+<rect x="214" y="194" width="78" height="78" rx="16" fill="#2563eb"/>
+<path d="M232 232l16 16 29-34" fill="none" stroke="#fff" stroke-width="13" stroke-linecap="round" stroke-linejoin="round"/>
+<circle cx="354" cy="328" r="70" fill="#f8fafc" stroke="#17468f" stroke-width="13"/>
+<path d="M354 290v40l29 18" fill="none" stroke="#173f8f" stroke-width="12" stroke-linecap="round"/>
+<path d="M18 320c82 32 125 85 205 95 82 10 142-22 271-78v96H18z" fill="url(#wave)" opacity=".94"/>
+<path d="M18 354c82 32 125 85 205 95 82 10 142-22 271-78v55c-120 53-188 72-278 60-83-11-128-62-198-87z" fill="#0f4fbf" opacity=".9"/>
 </svg>
