@@ -65,9 +65,9 @@ function festivalDutyMode(d){return get(d).att==='Festival Day'?"Yes":""}
 function specialDutyHours(d){return parseFloat(get(d).festivalHours)||0}
 function specialDutyPay(){let x=0;for(let d=1;d<=days();d++)if(isSpecialPaidDay(d)&&get(d).att==="Festival Day")x+=specialDutyHours(d)*125;return x}
 function specialHoursTotal(){let x=0;for(let d=1;d<=days();d++)if(isSpecialPaidDay(d)&&get(d).att==="Festival Day")x+=specialDutyHours(d);return x}
-function festivalDutyPay(){let x=0;for(let d=1;d<=days();d++)if(festivals[months[mi]]?.[d]&&!isSpecialPaidDay(d)&&festivalDutyMode(d)==="Yes")x+=festivalDutyHours(d)*125;return x}
+function festivalDutyPay(){let x=0;for(let d=1;d<=days();d++)if(!isSpecialPaidDay(d)&&festivalDutyMode(d)==="Yes")x+=festivalDutyHours(d)*125;return x}
 function festivalRegularBase(){return 0}
-function festivalHoursTotal(){let x=0;for(let d=1;d<=days();d++)if(festivals[months[mi]]?.[d]&&!isSpecialPaidDay(d))x+=festivalDutyHours(d);return x}
+function festivalHoursTotal(){let x=0;for(let d=1;d<=days();d++)if(!isSpecialPaidDay(d)&&festivalDutyMode(d)==="Yes")x+=festivalDutyHours(d);return x}
 function specialBase(){let x=0;for(let d=1;d<=days();d++)if(isSpecialPaidDay(d))x+=rate();return x}
 
 let mi=0,screen=0;
@@ -155,7 +155,7 @@ function attendance(){
     const festLabel=special?'<div class="special-label">🇮🇳 PAID DAY</div>':f?'<div class="fest">'+f+'</div>':'';
     s+='<div class="row '+cl+' '+attClass+' '+shiftClass+'"><div class="date">'+String(d).padStart(2,'0')+'<div class="day">'+day+'</div>'+festLabel+'</div>'+'<select onchange="upd('+d+',\'shift\',this.value)"><option value="">Shift</option>'+['Morning','Afternoon','Night','General'].map(x=>'<option '+(r.shift===x?'selected':'')+'>'+x+'</option>').join('')+'</select>'+'<select '+(wo(d)?'disabled':'')+' onchange="upd('+d+',\'att\',this.value)">'+opts+'</select>'+extra+'</div>';
   }
-  return s+'</div><div class="card note">⏱️ Short Leave: 2 hours tak exact hours ka deduction hoga (Daily Salary ÷ 8 × Short Leave Hours). 2 hours se zyada enter karte hi automatically Half Day ho jayega. Short Leave wale din bhi OT alag se bhar sakte ho. OT aur SL dono calculate honge.<br>🎉 <b>Festival Day</b> option ab kisi bhi date par manually select kar sakte ho — chahe festival list me date na ho. Hours भरो → <b>₹125/hour extra</b>. Agar Festival Day select nahi karte aur <b>Present</b> select karte ho, to normal working-day rule lagega. 🇮🇳 15 August & 26 January par daily salary aaye ya na aaye milegi; Festival Day select karke duty hours bharne par ₹125/hour extra milega. Dono days PF/ESIC count mein include honge. Weekly Off: Sep–Dec = Saturday • Jan–Apr = Monday • May–Aug = Sunday.</div>';
+  return s+'</div><div class="card note">⏱️ Short Leave: 2 hours tak exact hours ka deduction hoga (Daily Salary ÷ 8 × Short Leave Hours). 2 hours se zyada enter karte hi automatically Half Day ho jayega. Short Leave wale din bhi OT alag se bhar sakte ho. OT aur SL dono calculate honge.<br>🎉 <b>Festival Day</b> option ab kisi bhi date par manually select kar sakte ho — chahe festival list me date na ho. Hours भरो → <b>₹125/hour extra</b>, aur salary calculation me automatically include hoga. Agar Festival Day select nahi karte aur <b>Present</b> select karte ho, to normal working-day rule lagega. 🇮🇳 15 August & 26 January par daily salary aaye ya na aaye milegi; Festival Day select karke duty hours bharne par ₹125/hour extra milega. Dono days PF/ESIC count mein include honge. Weekly Off: Sep–Dec = Saturday • Jan–Apr = Monday • May–Aug = Sunday.</div>';
 }
 function monthlyReport(){
   const s=settings(), present=count("Present"), half=count("Half Day"), absent=count("Absent"), weekly=Array.from({length:days()},(_,i)=>wo(i+1)).filter(Boolean).length;
@@ -183,7 +183,7 @@ function dailySalaryBreakdown(){
     else if(a==="Half Day") base=rate()*.5;
     else if(a==="Short Leave") base=rate()-sl;
     else if(isSpecialPaidDay(d)) base=rate();
-    const duty=(isSpecialPaidDay(d)&&a==="Festival Day"?specialDutyHours(d)*125:(!isSpecialPaidDay(d)&&festivals[months[mi]]?.[d]&&a==="Festival Day"?festivalDutyHours(d)*125:0));
+    const duty=(isSpecialPaidDay(d)&&a==="Festival Day"?specialDutyHours(d)*125:(!isSpecialPaidDay(d)&&a==="Festival Day"?festivalDutyHours(d)*125:0));
     const dayTotal=base+op+duty;
     if(a||r.ot||r.shortLeaveHours||r.festivalHours){
       total+=dayTotal;
