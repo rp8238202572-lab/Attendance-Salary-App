@@ -9,12 +9,12 @@
 <style>
 :root{--bg:#0b1220;--card:#111a2b;--card2:#162238;--ink:#f8fafc;--muted:#94a3b8;--line:#26344d;--green:#22c55e;--red:#ef4444;--yellow:#f59e0b;--blue:#38bdf8}
 *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif}.app{max-width:760px;margin:auto;min-height:100vh;padding-bottom:30px}header{padding:20px 16px 14px;background:linear-gradient(135deg,#111827,#172554);position:sticky;top:0;z-index:5}h1{margin:0;font-size:23px}.sub{color:#b7c3d4;font-size:12px;margin-top:4px}.wrap{padding:10px}.card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:14px;margin:9px 0}.grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}label{font-size:11px;color:var(--muted);display:block;margin-bottom:4px}input,select,button{width:100%;border:1px solid var(--line);border-radius:10px;padding:10px;background:#0e1728;color:var(--ink);font:inherit}button{font-weight:800;background:#1d4ed8;border-color:#2563eb}button.secondary{background:#182338;border-color:var(--line)}button:disabled{opacity:.5}.status{padding:12px;border-radius:12px;background:#0d1728;color:var(--muted);font-size:12px;line-height:1.45}.stock{border:1px solid var(--line);border-radius:14px;padding:12px;margin:8px 0;background:var(--card2)}.stocktop{display:flex;justify-content:space-between;gap:8px;align-items:center}.sym{font-size:17px;font-weight:900}.price{font-weight:800}.badge{padding:5px 9px;border-radius:999px;font-size:10px;font-weight:900}.buy{background:#052e16;color:#86efac}.wait{background:#422006;color:#fde68a}.avoid{background:#450a0a;color:#fca5a5}.meta{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:10px}.meta div{background:#0e1728;border-radius:9px;padding:7px}.meta small{display:block;color:var(--muted);font-size:9px}.meta b{font-size:12px}.reason{font-size:11px;color:#cbd5e1;margin-top:9px;line-height:1.4}.tiny{font-size:10px;color:var(--muted);line-height:1.4}.row{display:flex;justify-content:space-between;gap:10px;padding:7px 0;border-bottom:1px solid var(--line)}.row:last-child{border:0}.green{color:#86efac}.red{color:#fca5a5}.yellow{color:#fde68a}.blue{color:#7dd3fc}@media(max-width:430px){.grid{grid-template-columns:1fr}.meta{grid-template-columns:repeat(2,1fr)}}
-</style>
+ .hero{background:linear-gradient(135deg,#172554,#0f766e);border:0}.hero h2{margin:0 0 5px;font-size:18px}.hero p{margin:0;color:#dbeafe;font-size:12px;line-height:1.5}.market{display:flex;justify-content:space-between;align-items:center;gap:8px}.market b{font-size:13px}.pill{padding:5px 8px;border-radius:999px;font-size:10px;font-weight:900}.open{background:#052e16;color:#86efac}.closed{background:#3f1d1d;color:#fca5a5}.how .step{display:flex;gap:10px;padding:8px 0;border-bottom:1px solid var(--line)}.how .step:last-child{border:0}.num{min-width:24px;height:24px;border-radius:50%;background:#1d4ed8;display:grid;place-items:center;font-weight:900;font-size:11px}.confidence{height:8px;border-radius:99px;background:#0e1728;overflow:hidden;margin-top:10px}.confidence i{display:block;height:100%;background:#22c55e}</style>
 </head>
 <body>
 <div class="app">
 <header><h1>📈 Intraday Scanner</h1><div class="sub">NSE • rule-based setup scanner • not a guaranteed prediction</div></header>
-<div class="wrap">
+<div class="wrap"><div class="card hero"><h2>🤝 Beginner Mode</h2><p>Tu sirf capital enter kar. Baaki scanner trend, momentum, volume, VWAP, stop-loss aur quantity ko check karega. <b>Signal mile tabhi trade consider karna.</b></p></div><div class="card market"><span><b>Market status</b><small id="marketTime" class="tiny" style="display:block">Checking IST time…</small></span><span id="marketBadge" class="pill closed">CHECKING</span></div>
 <div class="card">
 <div class="grid">
 <div><label>Capital (₹)</label><input id="capital" type="number" min="500" step="100" value="2000"></div>
@@ -27,7 +27,7 @@
 <button id="scan" style="margin-top:10px" onclick="scan()">🔎 Scan market</button>
 </div>
 <div id="status" class="status">Ready. Tap Scan market. The scanner checks a focused NSE watchlist and returns only setups that pass the rules.</div>
-<div id="results"></div>
+<div id="results"></div><div id="education"></div>
 <div class="card">
 <div class="row"><span>Signal logic</span><b class="blue">5-minute candles</b></div>
 <div class="row"><span>Trend</span><span>EMA 9 vs EMA 21</span></div>
@@ -87,7 +87,7 @@ async function scan(){
  status.textContent="Scanning "+WATCH.length+" NSE stocks…";
  const results=await Promise.all(WATCH.map(async s=>{try{return setup(s,await getData(s),capital,risk,minScore)}catch(e){errors++;return null}finally{done++;status.textContent="Scanning… "+done+"/"+WATCH.length}})));
  found=results.filter(Boolean).filter(x=>x.score>=minScore&&x.quantity>0).sort((a,b)=>b.score-a.score).slice(0,maxTrades);
- if(!found.length){out.innerHTML='<div class="card"><div class="stocktop"><b>NO TRADE</b><span class="badge wait">WAIT</span></div><div class="reason">No setup passed the selected score/risk rules with the entered capital. This is a valid result—do not force a trade.</div></div>';status.textContent="Scan complete • "+errors+" symbols unavailable";btn.disabled=false;return}
+ if(!found.length){out.innerHTML='<div class="card"><div class="stocktop"><b>NO TRADE</b><span class="badge wait">WAIT</span></div><div class="confidence"><i style="width:x.score%"></i></div><div class="reason">No setup passed the selected score/risk rules with the entered capital. This is a valid result—do not force a trade.</div></div>';status.textContent="Scan complete • "+errors+" symbols unavailable";btn.disabled=false;return}
  out.innerHTML=found.map(x=>card(x,capital,risk)).join("");
  status.textContent="Scan complete • "+found.length+" setup(s) passed • "+errors+" symbols unavailable";
  btn.disabled=false;
@@ -98,5 +98,5 @@ function card(x,capital,risk){
  '<div class="meta"><div><small>ENTRY</small><b>₹'+round2(x.entry)+'</b></div><div><small>STOP</small><b>₹'+round2(x.stop)+'</b></div><div><small>TARGET</small><b>₹'+round2(x.target)+'</b></div><div><small>QTY</small><b>'+x.quantity+'</b></div><div><small>RISK</small><b>₹'+riskAmt+'</b></div><div><small>R:R</small><b>1 : 1.8</b></div><div><small>RSI</small><b>'+round2(x.rsi)+'</b></div><div><small>VOL / AVG</small><b>'+x.volRatio.toFixed(1)+'×</b></div><div><small>VWAP</small><b>₹'+round2(x.vwap)+'</b></div></div>'+
  '<div class="reason">'+x.reason+'</div><div class="tiny" style="margin-top:7px">Capital ₹'+capital+' • planned risk '+risk+'% • max affordable qty '+x.affordable+' • estimated reward ₹'+reward+'</div></div>';
 }
-</script>
+function marketStatus(){const d=new Date(new Date().toLocaleString("en-US",{timeZone:"Asia/Kolkata"}));const day=d.getDay(),m=d.getHours()*60+d.getMinutes();const open=day>=1&&day<=5&&m>=555&&m<930;document.getElementById("marketBadge").textContent=open?"MARKET OPEN":"MARKET CLOSED";document.getElementById("marketBadge").className="pill "+(open?"open":"closed");document.getElementById("marketTime").textContent=d.toLocaleTimeString("en-IN",{hour:"2-digit",minute:"2-digit"})+" IST • NSE regular session 9:15–15:30";}marketStatus();setInterval(marketStatus,30000);</script>
 </body></html>
