@@ -83,7 +83,9 @@ const otRate=()=>Number(settings().otRate)||35;
 function otPayForDay(d){
   const h=parseFloat(get(d).ot)||0;
   if(h<=0) return 0;
-  // Company rule: under 8h => configured OT rate; 8h or more => daily salary / 8.
+  // Weekly Off: no OT hour limit; every OT hour is paid at Daily Salary ÷ 8.
+  if(wo(d)) return h*(rate()/8);
+  // Normal working day: under 8h = configured OT rate; 8h or more = Daily Salary ÷ 8 per hour.
   return h < 8 ? h*otRate() : h*(rate()/8);
 }
 function totalOtPay(){let x=0;for(let d=1;d<=days();d++)x+=otPayForDay(d);return x;}
@@ -200,7 +202,7 @@ return monthbar()+`<div class="card"><h3 style="margin:4px 0 12px">⚙️ Salary
 <div class="money"><span>Normal OT / Hour</span><input id="sOt" type="number" step=".5" value="${s.otRate}" style="width:140px"></div>
 <div class="money"><span>PF %</span><input id="sPf" type="number" step=".01" value="${Number(s.pf)*100}" style="width:140px"></div>
 <div class="money"><span>ESIC %</span><input id="sEsic" type="number" step=".01" value="${Number(s.esic)*100}" style="width:140px"></div>
-<div class="note" style="margin:8px 0">OT rule: below 8 hours = normal OT rate. 8 hours or more in one day = Daily Salary ÷ 8 per OT hour.<br>Gujarat Professional Tax: ₹0 when monthly salary/wages are ₹12,000 or less; ₹200/month when above ₹12,000.</div>
+<div class="note" style="margin:8px 0">OT rule: Weekly Off par OT hours ki koi limit nahi hai — har OT hour ka rate Daily Salary ÷ 8 hoga. Normal working day par below 8 hours = normal OT rate; 8 hours or more = Daily Salary ÷ 8 per OT hour.<br>Gujarat Professional Tax: ₹0 when monthly salary/wages are ₹12,000 or less; ₹200/month when above ₹12,000.</div>
 <button class="btn wide" onclick="saveSettings()">💾 Save Profile</button>
 <button class="btn wide" style="margin-top:7px" onclick="addProfile()">➕ Add Friend Profile</button>
 <div style="display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:7px"><button class="btn" onclick="backupData()">💾 Backup Data</button><button class="btn" onclick="shareData()">📤 Share Data</button><button class="btn" onclick="document.getElementById('restoreFile').click()">♻️ Restore Data</button><button class="btn" onclick="shareSummary()">📊 Share Summary</button></div>
