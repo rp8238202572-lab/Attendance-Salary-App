@@ -141,7 +141,7 @@ function printReport(){
 }
 function exportCSV(){
   const s=settings(), rows=[["Attendance & Salary Report"],["Month",months[mi]],["Profile",s.name],["Daily Salary",s.rate],[],["Metric","Value"],["Present (days)",count("Present")],["Half Day",count("Half Day")],["Absent",count("Absent")],["Weekly Off",Array.from({length:days()},(_,i)=>wo(i+1)).filter(Boolean).length],["Basic Earned",basic().toFixed(2)],["Normal OT Hours",ot().toFixed(1)],["Normal OT Pay",totalOtPay().toFixed(2)],["Special Day Duty Hours",specialHoursTotal().toFixed(1)],["Special Day Duty Pay",specialDutyPay().toFixed(2)],["Festival Duty Hours",festivalHoursTotal().toFixed(1)],["Festival Duty Pay",festivalDutyPay().toFixed(2)],["Gross",gross().toFixed(2)],["PF",Math.round(basic()*Number(s.pf))],["ESIC",Math.round(basic()*Number(s.esic))],["Professional Tax",professionalTax()],["Net Salary",net().toFixed(2)]];
-  const csv=rows.map(r=>r.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(",")).join("`r.att==='Short Leave'?\`<input type="number" min="0" max="2" step=".5" value="${r.shortLeaveHours||""}" placeholder="SL h" onchange="upd(${d},'shortLeaveHours',this.value)">\`:\`<input type="number" min="0" step=".5" value="${r.ot||""}" placeholder="OT" onchange="upd(${d},'ot',this.value)">\`n");
+  const csv=rows.map(r=>r.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(",")).join("`r.att==='Short Leave'?\`<input type="number" min="0" max="2" step=".5" value="${r.shortLeaveHours||""}" placeholder="SL h" oninput="shortLeaveInput(${d},this.value)" onchange="upd(${d},'shortLeaveHours',this.value)">\`:\`<input type="number" min="0" step=".5" value="${r.ot||""}" placeholder="OT" onchange="upd(${d},'ot',this.value)">\`n");
   const blob=new Blob([csv],{type:"text/csv;charset=utf-8"}),a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=`Salary_Report_${months[mi].replace(/\s+/g,"_")}.csv`;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);
 }
 function salary(){return monthbar()+`<div class="card"><div class="money"><span>Present</span><b>${count("Present")} days</b></div><div class="money"><span>Half Day</span><b>${count("Half Day")}</b></div><div class="money"><span>Absent</span><b>${count("Absent")}</b></div><div class="money"><span>Weekly Off</span><b>${Array.from({length:days()},(_,i)=>wo(i+1)).filter(Boolean).length}</b></div><div class="money"><span>Basic Earned</span><b>₹${basic().toFixed(2)}</b></div><div class="money"><span>OT (${ot().toFixed(1)}h)</span><b>₹${totalOtPay().toFixed(2)}</b></div><div class="money"><span>🇮🇳 15 Aug / 26 Jan Duty (${specialHoursTotal().toFixed(1)}h)</span><b>₹${specialDutyPay().toFixed(2)}</b></div><div class="money"><span>🎉 Festival Duty (${festivalHoursTotal().toFixed(1)}h)</span><b>₹${festivalDutyPay().toFixed(2)}</b></div><div class="money"><span>PF ${Number(settings().pf)*100}%</span><b>−₹${Math.round(basic()*Number(settings().pf))}</b></div><div class="money"><span>ESIC ${Number(settings().esic)*100}%</span><b>−₹${Math.round(basic()*Number(settings().esic))}</b></div><div class="money"><span>Professional Tax</span><b>−₹${professionalTax()}</b></div><div class="money net"><span>NET SALARY</span><b>₹${net().toFixed(2)}</b></div></div><div class="card"><h3 style="margin:2px 0 8px">📄 Monthly Report</h3><div class="note">Current month ka complete salary breakdown print ya CSV mein save/share kar sakte ho.</div><div class="report-grid" style="margin-top:9px"><button class="btn" onclick="printReport()">🖨️ Print / PDF</button><button class="btn" onclick="exportCSV()">📊 Export CSV</button></div></div>`}
@@ -229,6 +229,14 @@ if(!name) return;
 const id="p"+Date.now();
 profiles.push({id,name:name.trim(),rate:512.5,otRate:35,pf:.12,esic:.0075});
 activeProfile=id;saveProfiles();render();
+}
+function shortLeaveInput(d,v){
+  const h=parseFloat(v)||0;
+  set(d,'shortLeaveHours',v);
+  if(h>2){
+    set(d,'att','Half Day');
+    render();
+  }
 }
 function upd(d,k,v){
   if(k==='att'){
