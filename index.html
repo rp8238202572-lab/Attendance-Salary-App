@@ -170,7 +170,27 @@ function exportCSV(){
   const csv=rows.map(r=>r.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(",")).join("\n");
   const blob=new Blob([csv],{type:"text/csv;charset=utf-8"}),a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=`Salary_Report_${months[mi].replace(/\s+/g,"_")}.csv`;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);
 }
-function salary(){return monthbar()+`<div class="card"><div class="money"><span>Present</span><b>${count("Present")} days</b></div><div class="money"><span>Half Day</span><b>${count("Half Day")}</b></div><div class="money"><span>Absent</span><b>${count("Absent")}</b></div><div class="money"><span>Weekly Off</span><b>${Array.from({length:days()},(_,i)=>wo(i+1)).filter(Boolean).length}</b></div><div class="money"><span>Basic Earned</span><b>₹${basic().toFixed(2)}</b></div><div class="money"><span>Short Leave (${totalShortLeaveHours().toFixed(1)}h) <small style="color:#6b7280">(deduction included)</small></span><b>−₹${totalShortLeaveDeduction().toFixed(2)}</b></div><div class="money"><span>OT (${ot().toFixed(1)}h)</span><b>₹${totalOtPay().toFixed(2)}</b></div><div class="money"><span>🇮🇳 15 Aug / 26 Jan Duty (${specialHoursTotal().toFixed(1)}h)</span><b>₹${specialDutyPay().toFixed(2)}</b></div><div class="money"><span>🎉 Festival Duty (${festivalHoursTotal().toFixed(1)}h)</span><b>₹${festivalDutyPay().toFixed(2)}</b></div><div class="money"><span>PF ${Number(settings().pf)*100}%</span><b>−₹${Math.round(basic()*Number(settings().pf))}</b></div><div class="money"><span>ESIC ${Number(settings().esic)*100}%</span><b>−₹${Math.round(basic()*Number(settings().esic))}</b></div><div class="money"><span>Professional Tax</span><b>−₹${professionalTax()}</b></div><div class="money net"><span>NET SALARY</span><b>₹${net().toFixed(2)}</b></div></div><div class="card"><h3 style="margin:2px 0 8px">📄 Monthly Report</h3><div class="note">Current month ka complete salary breakdown print ya CSV mein save/share kar sakte ho.</div><div class="report-grid" style="margin-top:9px"><button class="btn" onclick="printReport()">🖨️ Print / PDF</button><button class="btn" onclick="exportCSV()">📊 Export CSV</button></div></div>`}
+function dailySalaryBreakdown(){
+  let rows='<div class="card"><h3 style="margin:2px 0 10px">📅 Daily Salary Breakdown</h3>';
+  let total=0;
+  for(let d=1;d<=days();d++){
+    const r=get(d), a=r.att, sl=shortLeaveDeductionForDay(d), op=otPayForDay(d);
+    let base=0;
+    if(a==="Present") base=rate();
+    else if(a==="Half Day") base=rate()*.5;
+    else if(a==="Short Leave") base=rate()-sl;
+    else if(isSpecialPaidDay(d)) base=rate();
+    const duty=(isSpecialPaidDay(d)&&a==="Festival Day"?specialDutyHours(d)*125:(!isSpecialPaidDay(d)&&festivals[months[mi]]?.[d]&&a==="Festival Day"?festivalDutyHours(d)*125:0));
+    const dayTotal=base+op+duty;
+    if(a||r.ot||r.shortLeaveHours||r.festivalHours){
+      total+=dayTotal;
+      rows+=`<div class="money"><span><b>${String(d).padStart(2,'0')}</b> — ${a||"—"}<small style="display:block;color:#6b7280">${r.shift||"No shift"}${sl>0?" • SL −₹"+sl.toFixed(2):""}${op>0?" • OT +₹"+op.toFixed(2):""}</small></span><b>₹${dayTotal.toFixed(2)}</b></div>`;
+    }
+  }
+  rows+=`<div class="money net"><span>Daily Total Shown</span><b>₹${total.toFixed(2)}</b></div></div>`;
+  return rows;
+}
+function salary(){return monthbar()+`<div class="card"><div class="money"><span>Present</span><b>${count("Present")} days</b></div><div class="money"><span>Half Day</span><b>${count("Half Day")}</b></div><div class="money"><span>Absent</span><b>${count("Absent")}</b></div><div class="money"><span>Weekly Off</span><b>${Array.from({length:days()},(_,i)=>wo(i+1)).filter(Boolean).length}</b></div><div class="money"><span>Basic Earned</span><b>₹${basic().toFixed(2)}</b></div><div class="money"><span>Short Leave (${totalShortLeaveHours().toFixed(1)}h) <small style="color:#6b7280">(deduction included)</small></span><b>−₹${totalShortLeaveDeduction().toFixed(2)}</b></div><div class="money"><span>OT (${ot().toFixed(1)}h)</span><b>₹${totalOtPay().toFixed(2)}</b></div><div class="money"><span>🇮🇳 15 Aug / 26 Jan Duty (${specialHoursTotal().toFixed(1)}h)</span><b>₹${specialDutyPay().toFixed(2)}</b></div><div class="money"><span>🎉 Festival Duty (${festivalHoursTotal().toFixed(1)}h)</span><b>₹${festivalDutyPay().toFixed(2)}</b></div><div class="money"><span>PF ${Number(settings().pf)*100}%</span><b>−₹${Math.round(basic()*Number(settings().pf))}</b></div><div class="money"><span>ESIC ${Number(settings().esic)*100}%</span><b>−₹${Math.round(basic()*Number(settings().esic))}</b></div><div class="money"><span>Professional Tax</span><b>−₹${professionalTax()}</b></div><div class="money net"><span>NET SALARY</span><b>₹${net().toFixed(2)}</b></div></div>${dailySalaryBreakdown()}<div class="card"><h3 style="margin:2px 0 8px">📄 Monthly Report</h3><div class="note">Current month ka complete salary breakdown print ya CSV mein save/share kar sakte ho.</div><div class="report-grid" style="margin-top:9px"><button class="btn" onclick="printReport()">🖨️ Print / PDF</button><button class="btn" onclick="exportCSV()">📊 Export CSV</button></div></div>`}
 function settingsScreen(){
 const s=settings();
 return monthbar()+`<div class="card"><h3 style="margin:4px 0 12px">⚙️ Salary Profile</h3>
