@@ -97,10 +97,12 @@ function otPayForDay(d){
 function totalOtPay(){let x=0;for(let d=1;d<=days();d++)x+=otPayForDay(d);return x;}
 function ym(){let p=months[mi].split(" ");return [+p[1],new Date(p[0]+" 1, "+p[1]).getMonth()]}
 function days(){let [y,m]=ym();return new Date(y,m+1,0).getDate()}
-function weeklyOffDay(){const v=settings().weeklyOffDay;return v===undefined||v===null||v===""||v==="auto"?null:Number(v)}
-function wo(d){let [y,m]=ym(),w=new Date(y,m,d).getDay(),override=weeklyOffDay();if(override!==null)return w===override;return m>=8?w===6:m>=4?w===0:w===1}
-function weeklyOffLabel(){const v=weeklyOffDay();return v===null?"Auto (current default)": ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"][v]}
-function setWeeklyOff(v){settings().weeklyOffDay=v;saveProfiles();render()}
+function defaultWeeklyOffDayForMonth(monthIndex){return monthIndex>=8?6:monthIndex>=4?0:1}
+function weeklyOffDay(monthIndex=mi){const s=settings(),cfg=s.weeklyOffByMonth||{};const raw=Object.prototype.hasOwnProperty.call(cfg,String(monthIndex))?cfg[String(monthIndex)]:s.weeklyOffDay;return raw===undefined||raw===null||raw===""||raw==="auto"?null:Number(raw)}
+function wo(d){let [y,m]=ym(),w=new Date(y,m,d).getDay(),override=weeklyOffDay(mi);if(override!==null)return w===override;return m>=8?w===6:m>=4?w===0:w===1}
+function weeklyOffLabel(monthIndex=mi){const v=weeklyOffDay(monthIndex);return v===null?"Auto (current default)":["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"][v]}
+function setWeeklyOff(v,monthIndex=mi){const s=settings();s.weeklyOffByMonth=s.weeklyOffByMonth||{};if(v==="auto")delete s.weeklyOffByMonth[String(monthIndex)];else s.weeklyOffByMonth[String(monthIndex)]=Number(v);saveProfiles();migrateWeeklyOffRecords();render()}
+function migrateWeeklyOffRecords(){const s=settings(),cfg=s.weeklyOffByMonth||{};for(let m=0;m<months.length;m++){if(!Object.prototype.hasOwnProperty.call(cfg,String(m)))continue;const oldMi=mi;mi=m;const selected=weeklyOffDay(m),[y,mm]=ym();for(let d=1;d<=days();d++){const key=dataKey(d),r=data[key];if(!r||isSpecialPaidDay(d))continue;const dow=new Date(y,mm,d).getDay(),oldDefault=(m>=8?dow===6:m>=4?dow===0:dow===1);if(oldDefault&&selected!==dow&&r.att==="Weekly Off"){r.att="";data[key]=r}if(selected===dow&&(!r.att||r.att==="")){r.att="Weekly Off";data[key]=r}}mi=oldMi}appStorage.setItem("attendance_salary_data_v4",JSON.stringify(data))}
 function manualWeekOff(d){const r=data[dataKey(d)];return !!r&&r.att==="Weekly Off"&&!wo(d)}
 function isWeekOff(d){return (wo(d)||manualWeekOff(d))&&!isSpecialPaidDay(d)}
 function dataKey(d){return activeProfile+"_"+mi+"_"+d} function get(d){
