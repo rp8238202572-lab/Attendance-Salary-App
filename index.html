@@ -257,7 +257,7 @@ function upd(d,k,v){
 function chg(n){mi=Math.max(0,Math.min(months.length-1,mi+n));render()}
 function go(s){screen=s;render()}
 function render(){document.getElementById("root").innerHTML=screen===0?home():screen===1?attendance():screen===2?salary():settingsScreen();document.getElementById("profileName").textContent="Offline mobile tracker • "+settings().name;[0,1,2,3].forEach(i=>document.getElementById("n"+i).classList.toggle("active",i===screen))}
-n0.onclick=()=>go(0);n1.onclick=()=>go(1);n2.onclick=()=>go(2);n3.onclick=()=>go(3);render();
+["n0","n1","n2","n3"].forEach((id,i)=>document.getElementById(id).addEventListener("click",()=>go(i)));render();
 if("serviceWorker" in navigator)navigator.serviceWorker.register("sw.js").catch(()=>{});
 
 let deferredInstall=null;
