@@ -76,7 +76,8 @@ function festivalRegularBase(){return 0}
 function festivalHoursTotal(){let x=0;for(let d=1;d<=days();d++)if(!isSpecialPaidDay(d)&&festivalDutyMode(d)==="Yes")x+=festivalDutyHours(d);return x}
 function specialBase(){let x=0;for(let d=1;d<=days();d++)if(isSpecialPaidDay(d))x+=rate();return x}
 
-let mi=0,screen=0;
+const currentMonthLabel=(()=>{const n=new Date();return n.toLocaleString("en-US",{month:"long"})+" "+n.getFullYear()})();
+let mi=Math.max(0,months.indexOf(currentMonthLabel)),screen=0;
 function safeJson(raw,fallback){try{return raw==null||raw===""?fallback:JSON.parse(raw)}catch(e){return fallback}}
 const defaultProfiles=[{id:"p1",name:"My Profile",rate:512.5,otRate:35,pf:.12,esic:.0075}];
 let profiles=safeJson(appStorage.getItem("attendance_salary_profiles"),null);
@@ -139,7 +140,7 @@ function basic(){
 }
 function gross(){return basic()+totalOtPay()+specialDutyPay()+festivalDutyPay()}
 function net(){return gross()-Math.round(basic()*Number(settings().pf))-Math.round(basic()*Number(settings().esic))}
-function monthbar(){return `<div class="card"><div class="month"><button class="btn" onclick="chg(-1)">‹</button><b>${months[mi]}</b><button class="btn" onclick="chg(1)">›</button></div></div>`}
+function monthbar(){const todayBtn=months.includes(currentMonthLabel)?`<button class="btn" onclick="goToday()" title="Open current month">Today</button>`:"";return `<div class="card"><div class="month"><button class="btn" onclick="chg(-1)">‹</button><div style="display:flex;align-items:center;gap:7px"><b>${months[mi]}</b>${todayBtn}</div><button class="btn" onclick="chg(1)">›</button></div></div>`}
 function festivalList(){
   const f=festivals[months[mi]]||{};
   const items=Object.entries(f);
@@ -334,7 +335,7 @@ function upd(d,k,v){
   set(d,k,v);
   render();
 }
-function chg(n){mi=Math.max(0,Math.min(months.length-1,mi+n));render()}
+function chg(n){mi=Math.max(0,Math.min(months.length-1,mi+n));render()}\nfunction goToday(){const i=months.indexOf(currentMonthLabel);if(i>=0){mi=i;render()}}
 function go(s){screen=s;render()}
 function render(){try{document.getElementById("root").innerHTML=screen===0?home():screen===1?attendance():screen===2?salary():settingsScreen();document.getElementById("profileName").textContent="Offline mobile tracker • "+settings().name;[0,1,2,3].forEach(i=>document.getElementById("n"+i).classList.toggle("active",i===screen))}catch(e){console.error("Attendance & Salary render error:",e);document.getElementById("root").innerHTML='<div class="card"><h3>⚠️ App data error</h3><div class="note">App data read karte waqt problem aayi. Settings se Backup/Restore use karke data recover kiya ja sakta hai.</div><button class="btn wide" style="margin-top:10px" onclick="location.reload()">🔄 Reload App</button></div>'}}
 n0.onclick=()=>go(0);n1.onclick=()=>go(1);n2.onclick=()=>go(2);n3.onclick=()=>go(3);render();
