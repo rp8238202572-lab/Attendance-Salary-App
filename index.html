@@ -40,6 +40,12 @@ select,input{width:100%;min-width:0;border:1px solid var(--line);border-radius:9
 <nav class="nav"><button id="n0" class="active">🏠 Home</button><button id="n1">📅 Attendance</button><button id="n2">💰 Salary</button><button id="n3">⚙️ Settings</button></nav>
 </div>
 <script>
+const appStorage = window.AndroidStorage ? {
+  getItem: key => window.AndroidStorage.getItem(key),
+  setItem: (key, value) => window.AndroidStorage.setItem(key, String(value)),
+  removeItem: key => window.AndroidStorage.removeItem(key),
+  clear: () => window.AndroidStorage.clear()
+} : window.localStorage;
 const months=["September 2026","October 2026","November 2026","December 2026","January 2027","February 2027","March 2027","April 2027","May 2027","June 2027","July 2027","August 2027","September 2027","October 2027","November 2027","December 2027"];
 const festivals={
 "September 2026":{1:"Nag Pancham",2:"Randhan Chhath",3:"Shitala Satam",4:"Janmashtami",14:"Ganesh Chaturthi",15:"Rishi Panchami",19:"Radha Ashtami",25:"Anant Chaturdashi / Ganesh Visarjan",26:"Bhadarvi Poonam"},
@@ -71,12 +77,12 @@ function festivalHoursTotal(){let x=0;for(let d=1;d<=days();d++)if(!isSpecialPai
 function specialBase(){let x=0;for(let d=1;d<=days();d++)if(isSpecialPaidDay(d))x+=rate();return x}
 
 let mi=0,screen=0;
-let profiles=JSON.parse(localStorage.getItem("attendance_salary_profiles")||"null")||[{id:"p1",name:"My Profile",rate:512.5,otRate:35,pf:.12,esic:.0075}];
-let activeProfile=localStorage.getItem("attendance_salary_active_profile")||profiles[0].id;
+let profiles=JSON.parse(appStorage.getItem("attendance_salary_profiles")||"null")||[{id:"p1",name:"My Profile",rate:512.5,otRate:35,pf:.12,esic:.0075}];
+let activeProfile=appStorage.getItem("attendance_salary_active_profile")||profiles[0].id;
 if(!profiles.some(p=>p.id===activeProfile)) activeProfile=profiles[0].id;
-let data=JSON.parse(localStorage.getItem("attendance_salary_data_v4")||"{}");
+let data=JSON.parse(appStorage.getItem("attendance_salary_data_v4")||"{}");
 function settings(){return profiles.find(p=>p.id===activeProfile)||profiles[0]}
-function saveProfiles(){localStorage.setItem("attendance_salary_profiles",JSON.stringify(profiles));localStorage.setItem("attendance_salary_active_profile",activeProfile)}
+function saveProfiles(){appStorage.setItem("attendance_salary_profiles",JSON.stringify(profiles));appStorage.setItem("attendance_salary_active_profile",activeProfile)}
 
 const rate=()=>Number(settings().rate)||512.5;
 const otRate=()=>Number(settings().otRate)||35;
@@ -109,8 +115,8 @@ function shortLeaveDeductionForDay(d){
 }
 function totalShortLeaveHours(){let x=0;for(let d=1;d<=days();d++)x+=shortLeaveHours(d);return x}
 function totalShortLeaveDeduction(){let x=0;for(let d=1;d<=days();d++)x+=shortLeaveDeductionForDay(d);return x}
-function set(d,k,v){let r=get(d);r[k]=v;if(isWeekOff(d))r.att="Weekly Off";data[dataKey(d)]=r;localStorage.setItem("attendance_salary_data_v4",JSON.stringify(data))}
-function clearManualWeekOff(d){const r=get(d);r.att=wo(d)?"Weekly Off":"";data[dataKey(d)]=r;localStorage.setItem("attendance_salary_data_v4",JSON.stringify(data));render()}
+function set(d,k,v){let r=get(d);r[k]=v;if(isWeekOff(d))r.att="Weekly Off";data[dataKey(d)]=r;appStorage.setItem("attendance_salary_data_v4",JSON.stringify(data))}
+function clearManualWeekOff(d){const r=get(d);r.att=wo(d)?"Weekly Off":"";data[dataKey(d)]=r;appStorage.setItem("attendance_salary_data_v4",JSON.stringify(data));render()}
 function attChange(d,v){if(v==="__clear_weekoff"){clearManualWeekOff(d);return}upd(d,"att",v)}
 function count(v){let n=0;for(let d=1;d<=days();d++)if(get(d).att===v)n++;return n}
 function ot(){let x=0;for(let d=1;d<=days();d++)x+=parseFloat(get(d).ot)||0;return x}
@@ -262,7 +268,7 @@ function restoreData(file){
       if(!profiles.some(p=>p.id===activeProfile))activeProfile=profiles[0].id;
       data=x.data||{};
       saveProfiles();
-      localStorage.setItem("attendance_salary_data_v4",JSON.stringify(data));
+      appStorage.setItem("attendance_salary_data_v4",JSON.stringify(data));
       alert("Backup restored successfully ✓");
       render();
     }catch(e){alert("Backup file valid nahi hai.");}
@@ -280,7 +286,7 @@ s.esic=(Number(document.getElementById("sEsic").value)||.75)/100;
 saveProfiles();render();
 }
 function switchProfile(id){
-activeProfile=id;localStorage.setItem("attendance_salary_active_profile",id);render();
+activeProfile=id;appStorage.setItem("attendance_salary_active_profile",id);render();
 }
 function addProfile(){
 const name=prompt("Friend/Profile name?");
