@@ -31,3 +31,10 @@ jobs:
         with:
           name: attendance-salary-release-aab
           path: app/build/outputs/bundle/release/*.aab
+      - name: Build debug APK for phone testing
+        run: gradle assembleDebug
+      - name: Upload debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: attendance-salary-debug-apk
+          path: app/build/outputs/apk/debug/*.apk
