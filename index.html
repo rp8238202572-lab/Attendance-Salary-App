@@ -37,7 +37,7 @@ select,input{width:100%;min-width:0;border:1px solid var(--line);border-radius:9
 <div class="app">
 <header><h1>Attendance & Salary</h1><div class="sub" id="profileName">Offline mobile tracker • Simple Festival Mode</div><button id="installBtn" class="btn" style="display:none;margin-top:9px;background:#fff;color:#111827">📲 Install App</button></header>
 <main id="root"></main>
-<nav class="nav"><button id="n0" class="active">🏠 Home</button><button id="n1">📅 Attendance</button><button id="n2">💰 Salary</button><button id="n3">⚙️ Settings</button></nav>
+<nav class="nav"><button type="button" id="n0" class="active" onclick="go(0)" ontouchend="go(0)">🏠 Home</button><button type="button" id="n1" onclick="go(1)" ontouchend="go(1)">📅 Attendance</button><button type="button" id="n2" onclick="go(2)" ontouchend="go(2)">💰 Salary</button><button type="button" id="n3" onclick="go(3)" ontouchend="go(3)">⚙️ Settings</button></nav>
 </div>
 <script>
 const appStorage = window.AndroidStorage ? {
@@ -257,7 +257,7 @@ function upd(d,k,v){
 function chg(n){mi=Math.max(0,Math.min(months.length-1,mi+n));render()}
 function go(s){screen=s;render()}
 function render(){document.getElementById("root").innerHTML=screen===0?home():screen===1?attendance():screen===2?salary():settingsScreen();document.getElementById("profileName").textContent="Offline mobile tracker • "+settings().name;[0,1,2,3].forEach(i=>document.getElementById("n"+i).classList.toggle("active",i===screen))}
-["n0","n1","n2","n3"].forEach((id,i)=>document.getElementById(id).addEventListener("click",()=>go(i)));render();
+["n0","n1","n2","n3"].forEach((id,i)=>{const el=document.getElementById(id);if(el)el.addEventListener("click",()=>go(i))});render();
 if("serviceWorker" in navigator)navigator.serviceWorker.register("sw.js").catch(()=>{});
 
 let deferredInstall=null;
