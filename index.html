@@ -336,7 +336,7 @@ function upd(d,k,v){
 }
 function chg(n){mi=Math.max(0,Math.min(months.length-1,mi+n));render()}
 function go(s){screen=s;render()}
-function render(){try{document.getElementById("root").innerHTML=screen===0?home():screen===1?attendance():screen===2?salary():settingsScreen();document.getElementById("profileName").textContent="Offline mobile tracker • "+settings().name;[0,1,2,3].forEach(i=>document.getElementById("n"+i).classList.toggle("active",i===screen))}catch(e){console.error("Attendance & Salary render error:",e);document.getElementById("root").innerHTML='<div class="card"><h3>⚠️ App data error</h3><div class="note">App data read karte waqt problem aayi. Settings se Backup/Restore use karke data recover kiya ja sakta hai.</div><button class="btn wide" style="margin-top:10px" onclick="location.reload()">🔄 Reload App</button></div>’}}
+function render(){try{document.getElementById("root").innerHTML=screen===0?home():screen===1?attendance():screen===2?salary():settingsScreen();document.getElementById("profileName").textContent="Offline mobile tracker • "+settings().name;[0,1,2,3].forEach(i=>document.getElementById("n"+i).classList.toggle("active",i===screen))}catch(e){console.error("Attendance & Salary render error:",e);document.getElementById("root").innerHTML='<div class="card"><h3>⚠️ App data error</h3><div class="note">App data read karte waqt problem aayi. Settings se Backup/Restore use karke data recover kiya ja sakta hai.</div><button class="btn wide" style="margin-top:10px" onclick="location.reload()">🔄 Reload App</button></div>'}}
 n0.onclick=()=>go(0);n1.onclick=()=>go(1);n2.onclick=()=>go(2);n3.onclick=()=>go(3);render();
 if("serviceWorker" in navigator)navigator.serviceWorker.register("sw.js").catch(()=>{});
 
