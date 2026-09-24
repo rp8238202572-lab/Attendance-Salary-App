@@ -17,6 +17,7 @@ public class MainActivity extends Activity {
         s.setDomStorageEnabled(true);
         s.setAllowFileAccess(true);
         s.setAllowContentAccess(false);
+        web.addJavascriptInterface(new NativeStorage(this), "AndroidStorage");
         web.setWebViewClient(new WebViewClient());
         web.loadUrl("file:///android_asset/index.html");
         setContentView(web);
