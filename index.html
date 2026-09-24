@@ -77,10 +77,13 @@ function festivalHoursTotal(){let x=0;for(let d=1;d<=days();d++)if(!isSpecialPai
 function specialBase(){let x=0;for(let d=1;d<=days();d++)if(isSpecialPaidDay(d))x+=rate();return x}
 
 let mi=0,screen=0;
-let profiles=JSON.parse(appStorage.getItem("attendance_salary_profiles")||"null")||[{id:"p1",name:"My Profile",rate:512.5,otRate:35,pf:.12,esic:.0075}];
+function safeJson(raw,fallback){try{return raw==null||raw===""?fallback:JSON.parse(raw)}catch(e){return fallback}}
+const defaultProfiles=[{id:"p1",name:"My Profile",rate:512.5,otRate:35,pf:.12,esic:.0075}];
+let profiles=safeJson(appStorage.getItem("attendance_salary_profiles"),null);
+if(!Array.isArray(profiles)||!profiles.length) profiles=defaultProfiles;
 let activeProfile=appStorage.getItem("attendance_salary_active_profile")||profiles[0].id;
 if(!profiles.some(p=>p.id===activeProfile)) activeProfile=profiles[0].id;
-let data=JSON.parse(appStorage.getItem("attendance_salary_data_v4")||"{}");
+let data=safeJson(appStorage.getItem("attendance_salary_data_v4"),{});
 function settings(){return profiles.find(p=>p.id===activeProfile)||profiles[0]}
 function saveProfiles(){appStorage.setItem("attendance_salary_profiles",JSON.stringify(profiles));appStorage.setItem("attendance_salary_active_profile",activeProfile)}
 
@@ -333,7 +336,7 @@ function upd(d,k,v){
 }
 function chg(n){mi=Math.max(0,Math.min(months.length-1,mi+n));render()}
 function go(s){screen=s;render()}
-function render(){document.getElementById("root").innerHTML=screen===0?home():screen===1?attendance():screen===2?salary():settingsScreen();document.getElementById("profileName").textContent="Offline mobile tracker • "+settings().name;[0,1,2,3].forEach(i=>document.getElementById("n"+i).classList.toggle("active",i===screen))}
+function render(){try{document.getElementById("root").innerHTML=screen===0?home():screen===1?attendance():screen===2?salary():settingsScreen();document.getElementById("profileName").textContent="Offline mobile tracker • "+settings().name;[0,1,2,3].forEach(i=>document.getElementById("n"+i).classList.toggle("active",i===screen))}catch(e){console.error("Attendance & Salary render error:",e);document.getElementById("root").innerHTML='<div class="card"><h3>⚠️ App data error</h3><div class="note">App data read karte waqt problem aayi. Settings se Backup/Restore use karke data recover kiya ja sakta hai.</div><button class="btn wide" style="margin-top:10px" onclick="location.reload()">🔄 Reload App</button></div>’}}
 n0.onclick=()=>go(0);n1.onclick=()=>go(1);n2.onclick=()=>go(2);n3.onclick=()=>go(3);render();
 if("serviceWorker" in navigator)navigator.serviceWorker.register("sw.js").catch(()=>{});
 
