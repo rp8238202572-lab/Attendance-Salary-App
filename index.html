@@ -375,12 +375,21 @@ function goToday(){const i=months.indexOf(currentMonthLabel);if(i>=0){mi=i;rende
 function go(s){screen=s;render()}
 function render(){try{document.getElementById("root").innerHTML=screen===0?home():screen===1?attendance():screen===2?salary():settingsScreen();document.getElementById("profileName").textContent="Offline mobile tracker • "+settings().name;[0,1,2,3].forEach(i=>document.getElementById("n"+i).classList.toggle("active",i===screen))}catch(e){console.error("Attendance & Salary render error:",e);document.getElementById("root").innerHTML='<div class="card"><h3>⚠️ App data error</h3><div class="note">App data read karte waqt problem aayi. Settings se Backup/Restore use karke data recover kiya ja sakta hai.</div><button class="btn wide" style="margin-top:10px" onclick="location.reload()">🔄 Reload App</button></div>'}}
 n0.onclick=()=>go(0);n1.onclick=()=>go(1);n2.onclick=()=>go(2);n3.onclick=()=>go(3);render();
-if("serviceWorker" in navigator)navigator.serviceWorker.register("sw.js").catch(()=>{});
+if("serviceWorker" in navigator){
+  // When a new version takes control, reload once so the newest code is shown immediately.
+  navigator.serviceWorker.addEventListener("controllerchange",()=>{
+    if(!window.__swReloaded){
+      window.__swReloaded=true;
+      location.reload();
+    }
+  });
+  navigator.serviceWorker.register("./sw.js").catch(()=>{});
+}
 
 let deferredInstall=null;
 window.addEventListener("beforeinstallprompt",e=>{e.preventDefault();deferredInstall=e;const b=document.getElementById("installBtn");if(b)b.style.display="inline-block";});
 document.addEventListener("click",async e=>{if(e.target&&e.target.id==="installBtn"&&deferredInstall){deferredInstall.prompt();await deferredInstall.userChoice;deferredInstall=null;e.target.style.display="none";}});
 window.addEventListener("appinstalled",()=>{const b=document.getElementById("installBtn");if(b)b.style.display="none";});
-if("serviceWorker" in navigator){window.addEventListener("load",()=>navigator.serviceWorker.register("./sw.js").catch(()=>{}));}
+
 </script>
 </body></html>
