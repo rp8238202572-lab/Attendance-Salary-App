@@ -254,8 +254,26 @@ return monthbar()+`<div class="card"><h3 style="margin:4px 0 12px">⚙️ Salary
 <div class="card note">Each profile has separate attendance and salary data. Changing profiles does not mix their records.</div>`;
 }
 
+function hasRecentBackup(){
+  const t=Number(localStorage.getItem("attendance_salary_last_backup")||0);
+  return t>0 && (Date.now()-t)<30*24*60*60*1000;
+}
+
+function markBackupDone(){
+  localStorage.setItem("attendance_salary_last_backup",String(Date.now()));
+}
+
+function backupReminder(){
+  if(hasRecentBackup()) return;
+  const last=Number(localStorage.getItem("attendance_salary_last_backup")||0);
+  const msg=last
+    ? "30 din se backup nahi hua hai.\n\nAttendance & Salary ka backup abhi bana lena?"
+    : "Attendance & Salary ka backup abhi tak nahi banaya gaya.\n\nImportant data safe rakhne ke liye abhi backup bana lena?";
+  if(confirm(msg)) backupData();
+}
+
 async function backupData(){
-  const payload={version:"V16",app:"Attendance & Salary",exportedAt:new Date().toISOString(),profiles,activeProfile,data};
+  const payload={version:"V17",app:"Attendance & Salary",exportedAt:new Date().toISOString(),profiles,activeProfile,data};
   const json=JSON.stringify(payload,null,2);
   const name="AttendanceSalary_Backup_"+new Date().toISOString().slice(0,10)+".json";
   const blob=new Blob([json],{type:"application/json"});
@@ -264,9 +282,10 @@ async function backupData(){
     if(navigator.share && (!navigator.canShare || navigator.canShare({files:[file]}))){
       await navigator.share({
         title:"Attendance & Salary Backup",
-        text:"Is backup file ko Google Drive, WhatsApp ya kisi safe location par save kar do. Baad mein Restore Data se wapas la sakte ho.",
+        text:"Is backup file ko Google Drive ya kisi safe location par save kar do. Baad mein Restore Data se wapas la sakte ho.",
         files:[file]
       });
+      markBackupDone();
       return;
     }
   }catch(e){
@@ -277,9 +296,10 @@ async function backupData(){
     const a=document.createElement("a");
     a.href=url;a.download=name;document.body.appendChild(a);a.click();a.remove();
     setTimeout(()=>URL.revokeObjectURL(url),1500);
+    markBackupDone();
     alert("Backup file ban gayi ✓\n\nIs file ko Google Drive ya phone ke safe folder mein zaroor save kar lena.");
   }catch(e){
-    alert("Backup file create nahi ho paayi. Chrome ko file/download permission check karo.");
+    alert("Backup file create nahi ho paayi. Chrome ki file/download permission check karo.");
   }
 }
 async function shareData(){
@@ -375,6 +395,10 @@ function goToday(){const i=months.indexOf(currentMonthLabel);if(i>=0){mi=i;rende
 function go(s){screen=s;render()}
 function render(){try{document.getElementById("root").innerHTML=screen===0?home():screen===1?attendance():screen===2?salary():settingsScreen();document.getElementById("profileName").textContent="Offline mobile tracker • "+settings().name;[0,1,2,3].forEach(i=>document.getElementById("n"+i).classList.toggle("active",i===screen))}catch(e){console.error("Attendance & Salary render error:",e);document.getElementById("root").innerHTML='<div class="card"><h3>⚠️ App data error</h3><div class="note">App data read karte waqt problem aayi. Settings se Backup/Restore use karke data recover kiya ja sakta hai.</div><button class="btn wide" style="margin-top:10px" onclick="location.reload()">🔄 Reload App</button></div>'}}
 n0.onclick=()=>go(0);n1.onclick=()=>go(1);n2.onclick=()=>go(2);n3.onclick=()=>go(3);render();
+if(!sessionStorage.getItem("attendance_salary_backup_checked")){
+  sessionStorage.setItem("attendance_salary_backup_checked","1");
+  setTimeout(backupReminder,1200);
+}
 if("serviceWorker" in navigator){
   // When a new version takes control, reload once so the newest code is shown immediately.
   navigator.serviceWorker.addEventListener("controllerchange",()=>{
