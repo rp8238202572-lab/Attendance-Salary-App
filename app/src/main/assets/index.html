@@ -247,42 +247,38 @@ return monthbar()+`<div class="card"><h3 style="margin:4px 0 12px">⚙️ Salary
 <div class="note" style="margin:8px 0">OT rule: Weekly Off par OT hours ki koi limit nahi hai — har OT hour ka rate Daily Salary ÷ 8 hoga. Normal working day par below 8 hours = normal OT rate; 8 hours or more = Daily Salary ÷ 8 per OT hour.<br>Professional Tax: Gujarat rule enabled — ₹0 up to ₹12,000/month and ₹200/month above ₹12,000.</div>
 <button class="btn wide" onclick="saveSettings()">💾 Save Profile</button>
 <button class="btn wide" style="margin-top:7px" onclick="addProfile()">➕ Add Friend Profile</button>
-<div style="display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:7px"><button class="btn" onclick="backupData()">💾 Backup Data</button><button class="btn" onclick="shareData()">📤 Share Data</button><button class="btn" onclick="document.getElementById('restoreFile').click()">♻️ Restore Data</button><button class="btn" onclick="shareSummary()">📊 Share Summary</button></div>
-<input id="restoreFile" type="file" accept="application/json,.json" style="display:none" onchange="restoreData(this.files[0])">
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:7px"><button class="btn" onclick="backupData()">💾 Backup Data</button><button class="btn" onclick="shareData()">📤 Share Data</button><button class="btn" onclick="restoreData()">♻️ Restore Data</button><button class="btn" onclick="shareSummary()">📊 Share Summary</button></div>
 <div class="note" style="margin-top:8px">Backup mein profiles aur attendance records save honge. Phone change/reinstall karne se pehle backup rakh lena.</div></div>
 <div class="card"><h3 style="margin:4px 0 10px">📊 Month History — ${s.name}</h3>${months.map((m,i)=>{let old=mi;mi=i;let n=net(),p=count("Present"),o=ot(),op=totalOtPay();mi=old;return `<div class="money"><span>${m}<small style="color:#6b7280"> • ${p} present • ${o.toFixed(1)}h OT</small></span><b>₹${n.toFixed(0)}</b></div>`}).join("")}</div>
 <div class="card note">Each profile has separate attendance and salary data. Changing profiles does not mix their records.</div>`;
 }
 
 async function backupData(){
-  const payload={version:"V16",app:"Attendance & Salary",exportedAt:new Date().toISOString(),profiles,activeProfile,data};
+  const payload={version:"V17",app:"Attendance & Salary",exportedAt:new Date().toISOString(),profiles,activeProfile,data};
   const json=JSON.stringify(payload,null,2);
   const name="AttendanceSalary_Backup_"+new Date().toISOString().slice(0,10)+".json";
+  if(window.AndroidStorage && window.AndroidStorage.nativeBackup){
+    window.AndroidStorage.nativeBackup(name,json);
+    return;
+  }
   const blob=new Blob([json],{type:"application/json"});
   const file=new File([blob],name,{type:"application/json"});
   try{
     if(navigator.share && (!navigator.canShare || navigator.canShare({files:[file]}))){
-      await navigator.share({
-        title:"Attendance & Salary Backup",
-        text:"Is backup file ko Google Drive, WhatsApp ya kisi safe location par save kar do. Baad mein Restore Data se wapas la sakte ho.",
-        files:[file]
-      });
+      await navigator.share({title:"Attendance & Salary Backup",text:"Backup file save/share karo.",files:[file]});
       return;
     }
-  }catch(e){
-    if(e&&e.name==="AbortError")return;
-  }
+  }catch(e){if(e&&e.name==="AbortError")return;}
   try{
-    const url=URL.createObjectURL(blob);
-    const a=document.createElement("a");
+    const url=URL.createObjectURL(blob);const a=document.createElement("a");
     a.href=url;a.download=name;document.body.appendChild(a);a.click();a.remove();
-    setTimeout(()=>URL.revokeObjectURL(url),1500);
-    alert("Backup file ban gayi ✓\n\nIs file ko Google Drive ya phone ke safe folder mein zaroor save kar lena.");
-  }catch(e){
-    alert("Backup file create nahi ho paayi. Chrome ko file/download permission check karo.");
-  }
+    setTimeout(()=>URL.revokeObjectURL(url),1500);alert("Backup file ban gayi ✓");
+  }catch(e){alert("Backup file create nahi ho paayi.");}
 }
-async function shareData(){
+window.nativeBackupSuccess=function(){alert("Backup file save ho gayi ✓");};
+window.nativeFileError=function(msg){alert("File operation failed: "+msg);};
+
+function shareData(){
   const payload={version:1,app:"Attendance & Salary",exportedAt:new Date().toISOString(),profiles,activeProfile,data};
   const blob=new Blob([JSON.stringify(payload,null,2)],{type:"application/json"});
   const file=new File([blob],"AttendanceSalary_Shared_Data.json",{type:"application/json"});
@@ -301,24 +297,30 @@ function shareSummary(){
   if(navigator.share){navigator.share({title:`Salary Summary — ${months[mi]}`,text:txt}).catch(e=>{});}else{navigator.clipboard?.writeText(txt);alert("Summary copy kar diya gaya hai. Ab WhatsApp/any app mein paste karke share kar sakte ho.");}
 }
 function restoreData(file){
+  if(window.AndroidStorage && window.AndroidStorage.nativeRestore){
+    window.AndroidStorage.nativeRestore();
+    return;
+  }
   if(!file)return;
   const reader=new FileReader();
-  reader.onload=()=>{
-    try{
-      const x=JSON.parse(reader.result);
-      if(!Array.isArray(x.profiles)||!x.profiles.length||typeof x.data!=="object")throw new Error("Invalid backup");
-      profiles=x.profiles;
-      activeProfile=x.activeProfile||profiles[0].id;
-      if(!profiles.some(p=>p.id===activeProfile))activeProfile=profiles[0].id;
-      data=x.data||{};
-      saveProfiles();
-      appStorage.setItem("attendance_salary_data_v4",JSON.stringify(data));
-      alert("Backup restored successfully ✓");
-      render();
-    }catch(e){alert("Backup file valid nahi hai.");}
-  };
+  reader.onload=()=>readRestoreText(reader.result);
   reader.readAsText(file);
 }
+function readRestoreText(text){
+  try{
+    const x=typeof text==="string"?JSON.parse(text):text;
+    if(!Array.isArray(x.profiles)||!x.profiles.length||typeof x.data!=="object")throw new Error("Invalid backup");
+    profiles=x.profiles;
+    activeProfile=x.activeProfile||profiles[0].id;
+    if(!profiles.some(p=>p.id===activeProfile))activeProfile=profiles[0].id;
+    data=x.data||{};
+    saveProfiles();
+    appStorage.setItem("attendance_salary_data_v4",JSON.stringify(data));
+    alert("Backup restored successfully ✓");
+    render();
+  }catch(e){alert("Backup file valid nahi hai.");}
+}
+window.nativeRestoreData=function(text){readRestoreText(text);};
 
 function saveSettings(){
 const s=settings();
