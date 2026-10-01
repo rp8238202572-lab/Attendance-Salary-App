@@ -1,6 +1,6 @@
 {
   "name": "Attendance & Salary",
-  "short_name": "Attendance",
+  "short_name": "Attendance & Salary",
   "id": "./",
   "start_url": "./",
   "scope": "./",
@@ -11,13 +11,13 @@
   "description": "Offline attendance and salary tracker",
   "icons": [
     {
-      "src": "./icon.svg",
+      "src": "./icon-v2.svg",
       "type": "image/svg+xml",
       "sizes": "192x192",
       "purpose": "any maskable"
     },
     {
-      "src": "./icon.svg",
+      "src": "./icon-v2.svg",
       "type": "image/svg+xml",
       "sizes": "512x512",
       "purpose": "any maskable"
