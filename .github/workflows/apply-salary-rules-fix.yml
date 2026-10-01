@@ -1,0 +1,88 @@
+name: Apply Salary Rules Fix
+
+on:
+  push:
+    paths:
+      - ".github/workflows/apply-salary-rules-fix.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Apply Professional Tax and special-day fixes
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          p = Path("index.html")
+          s = p.read_text(encoding="utf-8")
+          D = chr(36)
+
+          old_pt = 'function professionalTax(){return 0;}'
+          new_pt = '''function professionalTax(){
+            // Gujarat Professional Tax: monthly salary/wages up to ₹12,000 = ₹0;
+            // more than ₹12,000 = ₹200/month (effective 01/04/2022).
+            const monthlyWages = gross();
+            return monthlyWages > 12000 ? 200 : 0;
+          }'''
+          if old_pt not in s:
+              raise SystemExit("professionalTax() target not found")
+          s = s.replace(old_pt, new_pt, 1)
+
+          old_net = 'function net(){return gross()-Math.round(basic()*Number(settings().pf))-Math.round(basic()*Number(settings().esic))}'
+          new_net = 'function net(){return gross()-Math.round(basic()*Number(settings().pf))-Math.round(basic()*Number(settings().esic))-professionalTax()}'
+          if old_net not in s:
+              raise SystemExit("net() target not found")
+          s = s.replace(old_net, new_net, 1)
+
+          old_special = 'function specialBase(){let x=0;for(let d=1;d<=days();d++)if(isSpecialPaidDay(d))x+=rate();return x}'
+          new_special = '''function specialBase(){
+            // 15 Aug / 26 Jan are paid once regardless of attendance.
+            // If attendance already earns the regular day, do not double-count it.
+            let x=0;
+            for(let d=1;d<=days();d++){
+              if(isSpecialPaidDay(d)){
+                const a=get(d).att;
+                if(a!=="Present"&&a!=="Half Day"&&a!=="Short Leave") x+=rate();
+              }
+            }
+            return x;
+          }'''
+          if old_special not in s:
+              raise SystemExit("specialBase() target not found")
+          s = s.replace(old_special, new_special, 1)
+
+          old_report = '<div class="money"><span>ESIC ' + D + '{Number(s.esic)*100}%</span><b>−₹' + D + '{esic}</b></div><div class="money net"><span>NET SALARY</span><b>₹' + D + '{n.toFixed(2)}</b></div>'
+          new_report = '<div class="money"><span>ESIC ' + D + '{Number(s.esic)*100}%</span><b>−₹' + D + '{esic}</b></div><div class="money"><span>Professional Tax</span><b>−₹' + D + '{professionalTax()}</b></div><div class="money net"><span>NET SALARY</span><b>₹' + D + '{n.toFixed(2)}</b></div>'
+          s = s.replace(old_report, new_report, 1)
+
+          old_csv = '["ESIC",Math.round(basic()*Number(s.esic))],,["Net Salary",net().toFixed(2)]'
+          new_csv = '["ESIC",Math.round(basic()*Number(s.esic))],["Professional Tax",professionalTax()],["Net Salary",net().toFixed(2)]'
+          s = s.replace(old_csv, new_csv, 1)
+
+          old_share = 'ESIC: ₹' + D + '{Math.round(basic()*Number(settings().esic))}\\nNet Salary: ₹' + D + '{net().toFixed(2)}'
+          new_share = 'ESIC: ₹' + D + '{Math.round(basic()*Number(settings().esic))}\\nProfessional Tax: ₹' + D + '{professionalTax()}\\nNet Salary: ₹' + D + '{net().toFixed(2)}'
+          s = s.replace(old_share, new_share, 1)
+
+          s = s.replace(
+              'Professional Tax is disabled in this app configuration.',
+              'Professional Tax: Gujarat rule enabled — ₹0 up to ₹12,000/month and ₹200/month above ₹12,000.'
+          )
+
+          p.write_text(s, encoding="utf-8")
+          PY
+
+      - name: Commit fix
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.html
+          git diff --cached --quiet && exit 0
+          git commit -m "Fix Gujarat professional tax and special paid days"
+          git push
