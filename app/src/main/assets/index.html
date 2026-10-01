@@ -40,6 +40,12 @@ select,input{width:100%;min-width:0;border:1px solid var(--line);border-radius:9
 <nav class="nav"><button id="n0" class="active">🏠 Home</button><button id="n1">📅 Attendance</button><button id="n2">💰 Salary</button><button id="n3">⚙️ Settings</button></nav>
 </div>
 <script>
+const appStorage = window.AndroidStorage ? {
+  getItem: key => window.AndroidStorage.getItem(key),
+  setItem: (key, value) => window.AndroidStorage.setItem(key, String(value)),
+  removeItem: key => window.AndroidStorage.removeItem(key),
+  clear: () => window.AndroidStorage.clear()
+} : window.localStorage;
 const months=["September 2026","October 2026","November 2026","December 2026","January 2027","February 2027","March 2027","April 2027","May 2027","June 2027","July 2027","August 2027","September 2027","October 2027","November 2027","December 2027"];
 const festivals={
 "September 2026":{1:"Nag Pancham",2:"Randhan Chhath",3:"Shitala Satam",4:"Janmashtami",14:"Ganesh Chaturthi",15:"Rishi Panchami",19:"Radha Ashtami",25:"Anant Chaturdashi / Ganesh Visarjan",26:"Bhadarvi Poonam"},
@@ -68,15 +74,30 @@ function specialHoursTotal(){let x=0;for(let d=1;d<=days();d++)if(isSpecialPaidD
 function festivalDutyPay(){let x=0;for(let d=1;d<=days();d++)if(!isSpecialPaidDay(d)&&festivalDutyMode(d)==="Yes")x+=festivalDutyHours(d)*125;return x}
 function festivalRegularBase(){return 0}
 function festivalHoursTotal(){let x=0;for(let d=1;d<=days();d++)if(!isSpecialPaidDay(d)&&festivalDutyMode(d)==="Yes")x+=festivalDutyHours(d);return x}
-function specialBase(){let x=0;for(let d=1;d<=days();d++)if(isSpecialPaidDay(d))x+=rate();return x}
+function specialBase(){
+  // 15 Aug / 26 Jan are paid once regardless of attendance.
+  // If attendance already earns the regular day, do not double-count it.
+  let x=0;
+  for(let d=1;d<=days();d++){
+    if(isSpecialPaidDay(d)){
+      const a=get(d).att;
+      if(a!=="Present"&&a!=="Half Day"&&a!=="Short Leave") x+=rate();
+    }
+  }
+  return x;
+}
 
-let mi=0,screen=0;
-let profiles=JSON.parse(localStorage.getItem("attendance_salary_profiles")||"null")||[{id:"p1",name:"My Profile",rate:512.5,otRate:35,pf:.12,esic:.0075}];
-let activeProfile=localStorage.getItem("attendance_salary_active_profile")||profiles[0].id;
+const currentMonthLabel=(()=>{const n=new Date();return n.toLocaleString("en-US",{month:"long"})+" "+n.getFullYear()})();
+let mi=Math.max(0,months.indexOf(currentMonthLabel)),screen=0;
+function safeJson(raw,fallback){try{return raw==null||raw===""?fallback:JSON.parse(raw)}catch(e){return fallback}}
+const defaultProfiles=[{id:"p1",name:"My Profile",rate:512.5,otRate:35,pf:.12,esic:.0075}];
+let profiles=safeJson(appStorage.getItem("attendance_salary_profiles"),null);
+if(!Array.isArray(profiles)||!profiles.length) profiles=defaultProfiles;
+let activeProfile=appStorage.getItem("attendance_salary_active_profile")||profiles[0].id;
 if(!profiles.some(p=>p.id===activeProfile)) activeProfile=profiles[0].id;
-let data=JSON.parse(localStorage.getItem("attendance_salary_data_v4")||"{}");
+let data=safeJson(appStorage.getItem("attendance_salary_data_v4"),{});
 function settings(){return profiles.find(p=>p.id===activeProfile)||profiles[0]}
-function saveProfiles(){localStorage.setItem("attendance_salary_profiles",JSON.stringify(profiles));localStorage.setItem("attendance_salary_active_profile",activeProfile)}
+function saveProfiles(){appStorage.setItem("attendance_salary_profiles",JSON.stringify(profiles));appStorage.setItem("attendance_salary_active_profile",activeProfile)}
 
 const rate=()=>Number(settings().rate)||512.5;
 const otRate=()=>Number(settings().otRate)||35;
@@ -91,8 +112,13 @@ function otPayForDay(d){
 function totalOtPay(){let x=0;for(let d=1;d<=days();d++)x+=otPayForDay(d);return x;}
 function ym(){let p=months[mi].split(" ");return [+p[1],new Date(p[0]+" 1, "+p[1]).getMonth()]}
 function days(){let [y,m]=ym();return new Date(y,m+1,0).getDate()}
-function wo(d){let [y,m]=ym(),w=new Date(y,m,d).getDay();return m>=8?w===6:m>=4?w===0:w===1}
-function isWeekOff(d){return wo(d)&&!isSpecialPaidDay(d)}
+function defaultWeeklyOffDayForMonth(monthIndex){return monthIndex<4?6:monthIndex<8?1:monthIndex<12?0:6}
+function weeklyOffDay(monthIndex=mi){const s=settings(),cfg=s.weeklyOffByMonth||{};const raw=Object.prototype.hasOwnProperty.call(cfg,String(monthIndex))?cfg[String(monthIndex)]:s.weeklyOffDay;return raw===undefined||raw===null||raw===""||raw==="auto"?null:Number(raw)}
+function wo(d){let [y,m]=ym(),w=new Date(y,m,d).getDay(),override=weeklyOffDay(mi);if(override!==null)return w===override;return m>=8?w===6:m>=4?w===0:w===1}
+function weeklyOffLabel(monthIndex=mi){const v=weeklyOffDay(monthIndex);return v===null?"Auto (current default)": ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"][v]}
+function setWeeklyOff(v,monthIndex=mi){const s=settings();s.weeklyOffByMonth=s.weeklyOffByMonth||{};if(v==="auto")delete s.weeklyOffByMonth[String(monthIndex)];else s.weeklyOffByMonth[String(monthIndex)]=Number(v);saveProfiles();render()}
+function manualWeekOff(d){const r=data[dataKey(d)];return !!r&&r.att==="Weekly Off"&&!wo(d)}
+function isWeekOff(d){return (wo(d)||manualWeekOff(d))&&!isSpecialPaidDay(d)}
 function dataKey(d){return activeProfile+"_"+mi+"_"+d} function get(d){
   const r=data[dataKey(d)]||{shift:"",att:wo(d)?"Weekly Off":"",ot:"",festivalHours:"",shortLeaveHours:""};
   // Company rule: Short Leave up to 2 hours is unpaid by the exact hours;
@@ -108,7 +134,9 @@ function shortLeaveDeductionForDay(d){
 }
 function totalShortLeaveHours(){let x=0;for(let d=1;d<=days();d++)x+=shortLeaveHours(d);return x}
 function totalShortLeaveDeduction(){let x=0;for(let d=1;d<=days();d++)x+=shortLeaveDeductionForDay(d);return x}
-function set(d,k,v){let r=get(d);r[k]=v;if(isWeekOff(d))r.att="Weekly Off";data[dataKey(d)]=r;localStorage.setItem("attendance_salary_data_v4",JSON.stringify(data))}
+function set(d,k,v){let r=get(d);r[k]=v;if(isWeekOff(d))r.att="Weekly Off";data[dataKey(d)]=r;appStorage.setItem("attendance_salary_data_v4",JSON.stringify(data))}
+function clearManualWeekOff(d){const r=get(d);r.att=wo(d)?"Weekly Off":"";data[dataKey(d)]=r;appStorage.setItem("attendance_salary_data_v4",JSON.stringify(data));render()}
+function attChange(d,v){if(v==="__clear_weekoff"){clearManualWeekOff(d);return}upd(d,"att",v)}
 function count(v){let n=0;for(let d=1;d<=days();d++)if(get(d).att===v)n++;return n}
 function ot(){let x=0;for(let d=1;d<=days();d++)x+=parseFloat(get(d).ot)||0;return x}
 function basic(){
@@ -122,17 +150,17 @@ function basic(){
   return x+specialBase()+festivalRegularBase();
 }
 function gross(){return basic()+totalOtPay()+specialDutyPay()+festivalDutyPay()}
-function net(){return gross()-Math.round(basic()*Number(settings().pf))-Math.round(basic()*Number(settings().esic))}
-function monthbar(){return `<div class="card"><div class="month"><button class="btn" onclick="chg(-1)">‹</button><b>${months[mi]}</b><button class="btn" onclick="chg(1)">›</button></div></div>`}
+function net(){return gross()-Math.round(basic()*Number(settings().pf))-Math.round(basic()*Number(settings().esic))-professionalTax()}
+function monthbar(){const todayBtn=months.includes(currentMonthLabel)?`<button class="btn" onclick="goToday()" title="Open current month">Today</button>`:"";return `<div class="card"><div class="month"><button class="btn" onclick="chg(-1)">‹</button><div style="display:flex;align-items:center;gap:7px"><b>${months[mi]}</b>${todayBtn}</div><button class="btn" onclick="chg(1)">›</button></div></div>`}
 function festivalList(){
   const f=festivals[months[mi]]||{};
   const items=Object.entries(f);
   if(!items.length) return '<div class="note">No festival/holiday listed for this month.</div>';
   return items.map(([d,n])=>`<div class="money"><span>${String(d).padStart(2,"0")} — ${n}${isSpecialPaidDay(Number(d))?" 🇮🇳 Paid + ₹125/h duty":""}</span><b>🎉</b></div>`).join("");
 }
-function home(){let p=count("Present"),a=count("Absent"),w=Array.from({length:days()},(_,i)=>wo(i+1)).filter(Boolean).length;return monthbar()+`<div class="card"><div class="stats"><div class="stat"><b>${p}</b><small>Present</small></div><div class="stat"><b>${a}</b><small>Absent</small></div><div class="stat"><b>${w}</b><small>Week Off</small></div><div class="stat"><b>${ot().toFixed(1)}</b><small>OT Hours</small></div></div></div><div class="card"><div class="money"><span>Basic Earned</span><b>₹${basic().toFixed(2)}</b></div><div class="money"><span>OT</span><b>₹${totalOtPay().toFixed(2)}</b></div><div class="money"><span>🇮🇳 Special Duty (₹125/h)</span><b>₹${specialDutyPay().toFixed(2)}</b></div><div class="money"><span>🎉 Festival Duty ₹125/h</span><b>₹${festivalDutyPay().toFixed(2)}</b></div><div class="money"><span>PF ${Number(settings().pf)*100}%</span><b>−₹${Math.round(basic()*Number(settings().pf))}</b></div><div class="money"><span>ESIC ${Number(settings().esic)*100}%</span><b>−₹${Math.round(basic()*Number(settings().esic))}</b></div><div class="money net"><span>Net Estimate</span><b>₹${net().toFixed(2)}</b></div></div><div class="card"><h3 style="margin:2px 0 8px">🎉 Festivals & Holidays</h3>${festivalList()}</div><div class="card"><button class="btn wide" onclick="go(1)">📅 Open Attendance</button></div>`}
+function home(){let p=count("Present"),a=count("Absent"),w=Array.from({length:days()},(_,i)=>isWeekOff(i+1)).filter(Boolean).length;return monthbar()+`<div class="card"><div class="stats"><div class="stat"><b>${p}</b><small>Present</small></div><div class="stat"><b>${a}</b><small>Absent</small></div><div class="stat"><b>${w}</b><small>Week Off</small></div><div class="stat"><b>${ot().toFixed(1)}</b><small>OT Hours</small></div></div></div><div class="card"><div class="money"><span>Basic Earned</span><b>₹${basic().toFixed(2)}</b></div><div class="money"><span>OT</span><b>₹${totalOtPay().toFixed(2)}</b></div><div class="money"><span>🇮🇳 Special Duty (₹125/h)</span><b>₹${specialDutyPay().toFixed(2)}</b></div><div class="money"><span>🎉 Festival Duty ₹125/h</span><b>₹${festivalDutyPay().toFixed(2)}</b></div><div class="money"><span>PF ${Number(settings().pf)*100}%</span><b>−₹${Math.round(basic()*Number(settings().pf))}</b></div><div class="money"><span>ESIC ${Number(settings().esic)*100}%</span><b>−₹${Math.round(basic()*Number(settings().esic))}</b></div><div class="money net"><span>Net Estimate</span><b>₹${net().toFixed(2)}</b></div></div><div class="card"><h3 style="margin:2px 0 8px">🎉 Festivals & Holidays</h3>${festivalList()}</div><div class="card"><button class="btn wide" onclick="go(1)">📅 Open Attendance</button></div>`}
 function attendance(){
-  let s=monthbar()+'<div class="card">';
+  let s=monthbar()+`<div class="card"><div class="money"><span><b>📅 Weekly Off Day</b><small style="display:block;color:#6b7280">Default ko same rakhna ho to Auto select karo</small></span><select style="width:190px" onchange="setWeeklyOff(this.value)"><option value="auto" ${weeklyOffDay()===null?'selected':''}>Auto (Default)</option>${["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"].map((x,i)=>`<option value="${i}" ${weeklyOffDay()===i?'selected':''}>${x}</option>`).join('')}</select></div></div><div class="card">`;
   for(let d=1;d<=days();d++){
     const r=get(d), dt=new Date(ym()[0],ym()[1],d);
     const day=dt.toLocaleDateString('en-IN',{weekday:'short'});
@@ -141,9 +169,15 @@ function attendance(){
     const attClass={Present:'att-present','Half Day':'att-half','Short Leave':'att-short',Absent:'att-absent',Holiday:'att-holiday','Festival Day':'att-festival'}[r.att]||'';
     const shiftClass={Morning:'shift-morning',Afternoon:'shift-afternoon',Night:'shift-night',General:'shift-general'}[r.shift]||'';
     const cl=special?'special-day':isWeekOff(d)?'wo':f?'festival':'';
-    let opts=isWeekOff(d)?'<option selected>Weekly Off</option>':'<option value="">Attendance</option>'+['Present','Half Day','Short Leave','Absent','Holiday'].map(x=>'<option '+(r.att===x?'selected':'')+'>'+x+'</option>').join('');
-    if(eligible&&!isWeekOff(d)) opts='<option value="">Attendance</option>'+['Present','Half Day','Short Leave','Absent','Holiday','Festival Day'].map(x=>'<option '+(r.att===x?'selected':'')+'>'+x+'</option>').join('');
-    if(!isWeekOff(d)) opts='<option value="">Attendance</option>'+['Present','Half Day','Short Leave','Absent','Holiday','Festival Day'].map(x=>'<option '+(r.att===x?'selected':'')+'>'+x+'</option>').join('');
+    const manualOff=manualWeekOff(d);
+    let opts;
+    if(isWeekOff(d)){
+      opts='<option value="Weekly Off" selected>Weekly Off</option>';
+      if(manualOff) opts+='<option value="__clear_weekoff">Remove Weekly Off</option>';
+    }else{
+      const choices=eligible?['Present','Half Day','Short Leave','Absent','Holiday','Festival Day','Weekly Off']:['Present','Half Day','Short Leave','Absent','Holiday','Weekly Off'];
+      opts='<option value="">Attendance</option>'+choices.map(x=>'<option value="'+x+'" '+(r.att===x?'selected':'')+'>'+x+'</option>').join('');
+    }
     let extra='';
     if(r.att==='Festival Day'){
       extra='<input class="duty" type="number" min="0" step=".5" value="'+(r.festivalHours||'')+'" placeholder="Festival h" onchange="upd('+d+',\'festivalHours\',this.value)">';
@@ -153,14 +187,14 @@ function attendance(){
       extra='<input type="number" min="0" step=".5" value="'+(r.ot||'')+'" placeholder="OT" onchange="upd('+d+',\'ot\',this.value)">';
     }
     const festLabel=special?'<div class="special-label">🇮🇳 PAID DAY</div>':f?'<div class="fest">'+f+'</div>':'';
-    s+='<div class="row '+cl+' '+attClass+' '+shiftClass+'"><div class="date">'+String(d).padStart(2,'0')+'<div class="day">'+day+'</div>'+festLabel+'</div>'+'<select onchange="upd('+d+',\'shift\',this.value)"><option value="">Shift</option>'+['Morning','Afternoon','Night','General'].map(x=>'<option '+(r.shift===x?'selected':'')+'>'+x+'</option>').join('')+'</select>'+'<select '+(isWeekOff(d)?'disabled':'')+' onchange="upd('+d+',\'att\',this.value)">'+opts+'</select>'+extra+'</div>';
+    s+='<div class="row '+cl+' '+attClass+' '+shiftClass+'"><div class="date">'+String(d).padStart(2,'0')+'<div class="day">'+day+'</div>'+festLabel+'</div>'+'<select onchange="upd('+d+',\'shift\',this.value)"><option value="">Shift</option>'+['Morning','Afternoon','Night','General'].map(x=>'<option '+(r.shift===x?'selected':'')+'>'+x+'</option>').join('')+'</select>'+'<select onchange="attChange('+d+',this.value)">'+opts+'</select>'+extra+'</div>';
   }
-  return s+'</div><div class="card note">⏱️ Short Leave: 2 hours tak exact hours ka deduction hoga (Daily Salary ÷ 8 × Short Leave Hours). 2 hours se zyada enter karte hi automatically Half Day ho jayega. Short Leave wale din bhi OT alag se bhar sakte ho. OT aur SL dono calculate honge.<br>🎉 <b>Festival Day</b> option ab kisi bhi date par manually select kar sakte ho — chahe festival list me date na ho. Hours भरो → <b>₹125/hour extra</b>, aur salary calculation me automatically include hoga. Agar Festival Day select nahi karte aur <b>Present</b> select karte ho, to normal working-day rule lagega. 🇮🇳 15 August & 26 January par daily salary aaye ya na aaye milegi; Festival Day select karke duty hours bharne par ₹125/hour extra milega. Dono days PF/ESIC count mein include honge. Weekly Off: Sep–Dec = Saturday • Jan–Apr = Monday • May–Aug = Sunday. 15 August & 26 January are company-paid special days even if they fall on a weekly off.</div>';
+  return s+'</div><div class="card note">⏱️ Short Leave: 2 hours tak exact hours ka deduction hoga (Daily Salary ÷ 8 × Short Leave Hours). 2 hours se zyada enter karte hi automatically Half Day ho jayega. Short Leave wale din bhi OT alag se bhar sakte ho. OT aur SL dono calculate honge.<br>🎉 <b>Festival Day</b> option ab kisi bhi date par manually select kar sakte ho — chahe festival list me date na ho. Hours भरो → <b>₹125/hour extra</b>, aur salary calculation me automatically include hoga. Agar Festival Day select nahi karte aur <b>Present</b> select karte ho, to normal working-day rule lagega. 🇮🇳 15 August & 26 January par daily salary aaye ya na aaye milegi; Festival Day select karke duty hours bharne par ₹125/hour extra milega. Dono days PF/ESIC count mein include honge. Weekly Off: Auto par existing default 2026–2027 rule rahega (Sep–Dec Saturday • Jan–Apr Monday • May–Aug Sunday). Agar Monday/Sunday/Saturday etc. select karoge to selected day har month ka regular Weekly Off ban jayega, aur purana default day normal working day ho jayega. Extra Weekly Off kisi bhi date ke Attendance dropdown se manually set kar sakte ho. 15 August & 26 January are company-paid special days even if they fall on a weekly off.</div>';
 }
 function monthlyReport(){
-  const s=settings(), present=count("Present"), half=count("Half Day"), absent=count("Absent"), weekly=Array.from({length:days()},(_,i)=>wo(i+1)).filter(Boolean).length;
+  const s=settings(), present=count("Present"), half=count("Half Day"), absent=count("Absent"), weekly=Array.from({length:days()},(_,i)=>isWeekOff(i+1)).filter(Boolean).length;
   const otH=ot(), otP=totalOtPay(), spH=specialHoursTotal(), spP=specialDutyPay(), fdH=festivalHoursTotal(), fdP=festivalDutyPay(), b=basic(), pf=Math.round(b*Number(s.pf)), esic=Math.round(b*Number(s.esic)), g=gross(), n=net();
-  return `<div class="card report-only"><div class="report-title">📊 ${months[mi]} Salary Report</div><div class="report-muted">Profile: ${s.name} • Daily Salary: ₹${Number(s.rate).toFixed(2)}</div><div class="money"><span>Present</span><b>${present} days</b></div><div class="money"><span>Half Day</span><b>${half}</b></div><div class="money"><span>Absent</span><b>${absent}</b></div><div class="money"><span>Weekly Off</span><b>${weekly}</b></div><div class="money"><span>Basic Earned</span><b>₹${b.toFixed(2)}</b></div><div class="money"><span>Short Leave (${totalShortLeaveHours().toFixed(1)}h) <small style="color:#6b7280">(deduction included)</small></span><b>−₹${totalShortLeaveDeduction().toFixed(2)}</b></div><div class="money"><span>Normal OT (${otH.toFixed(1)}h)</span><b>₹${otP.toFixed(2)}</b></div><div class="money"><span>🇮🇳 Special Days (${spH.toFixed(1)}h duty)</span><b>₹${spP.toFixed(2)}</b></div><div class="money"><span>🎉 Festival Duty (${fdH.toFixed(1)}h)</span><b>₹${fdP.toFixed(2)}</b></div><div class="money"><span>Gross</span><b>₹${g.toFixed(2)}</b></div><div class="money"><span>PF ${Number(s.pf)*100}%</span><b>−₹${pf}</b></div><div class="money"><span>ESIC ${Number(s.esic)*100}%</span><b>−₹${esic}</b></div><div class="money net"><span>NET SALARY</span><b>₹${n.toFixed(2)}</b></div></div>`;
+  return `<div class="card report-only"><div class="report-title">📊 ${months[mi]} Salary Report</div><div class="report-muted">Profile: ${s.name} • Daily Salary: ₹${Number(s.rate).toFixed(2)}</div><div class="money"><span>Present</span><b>${present} days</b></div><div class="money"><span>Half Day</span><b>${half}</b></div><div class="money"><span>Absent</span><b>${absent}</b></div><div class="money"><span>Weekly Off</span><b>${weekly}</b></div><div class="money"><span>Basic Earned</span><b>₹${b.toFixed(2)}</b></div><div class="money"><span>Short Leave (${totalShortLeaveHours().toFixed(1)}h) <small style="color:#6b7280">(deduction included)</small></span><b>−₹${totalShortLeaveDeduction().toFixed(2)}</b></div><div class="money"><span>Normal OT (${otH.toFixed(1)}h)</span><b>₹${otP.toFixed(2)}</b></div><div class="money"><span>🇮🇳 Special Days (${spH.toFixed(1)}h duty)</span><b>₹${spP.toFixed(2)}</b></div><div class="money"><span>🎉 Festival Duty (${fdH.toFixed(1)}h)</span><b>₹${fdP.toFixed(2)}</b></div><div class="money"><span>Gross</span><b>₹${g.toFixed(2)}</b></div><div class="money"><span>PF ${Number(s.pf)*100}%</span><b>−₹${pf}</b></div><div class="money"><span>ESIC ${Number(s.esic)*100}%</span><b>−₹${esic}</b></div><div class="money"><span>Professional Tax</span><b>−₹${professionalTax()}</b></div><div class="money net"><span>NET SALARY</span><b>₹${n.toFixed(2)}</b></div></div>`;
 }
 function printReport(){
   const old=document.getElementById("root").innerHTML;
@@ -169,7 +203,7 @@ function printReport(){
   document.getElementById("root").innerHTML=old;
 }
 function exportCSV(){
-  const s=settings(), rows=[["Attendance & Salary Report"],["Month",months[mi]],["Profile",s.name],["Daily Salary",s.rate],[],["Metric","Value"],["Present (days)",count("Present")],["Half Day",count("Half Day")],["Absent",count("Absent")],["Weekly Off",Array.from({length:days()},(_,i)=>wo(i+1)).filter(Boolean).length],["Basic Earned",basic().toFixed(2)],["Short Leave Hours",totalShortLeaveHours().toFixed(1)],["Short Leave Deduction",totalShortLeaveDeduction().toFixed(2)],["Normal OT Hours",ot().toFixed(1)],["Normal OT Pay",totalOtPay().toFixed(2)],["Special Day Duty Hours",specialHoursTotal().toFixed(1)],["Special Day Duty Pay",specialDutyPay().toFixed(2)],["Festival Duty Hours",festivalHoursTotal().toFixed(1)],["Festival Duty Pay",festivalDutyPay().toFixed(2)],["Gross",gross().toFixed(2)],["PF",Math.round(basic()*Number(s.pf))],["ESIC",Math.round(basic()*Number(s.esic))],,["Net Salary",net().toFixed(2)]];
+  const s=settings(), rows=[["Attendance & Salary Report"],["Month",months[mi]],["Profile",s.name],["Daily Salary",s.rate],[],["Metric","Value"],["Present (days)",count("Present")],["Half Day",count("Half Day")],["Absent",count("Absent")],["Weekly Off",Array.from({length:days()},(_,i)=>isWeekOff(i+1)).filter(Boolean).length],["Basic Earned",basic().toFixed(2)],["Short Leave Hours",totalShortLeaveHours().toFixed(1)],["Short Leave Deduction",totalShortLeaveDeduction().toFixed(2)],["Normal OT Hours",ot().toFixed(1)],["Normal OT Pay",totalOtPay().toFixed(2)],["Special Day Duty Hours",specialHoursTotal().toFixed(1)],["Special Day Duty Pay",specialDutyPay().toFixed(2)],["Festival Duty Hours",festivalHoursTotal().toFixed(1)],["Festival Duty Pay",festivalDutyPay().toFixed(2)],["Gross",gross().toFixed(2)],["PF",Math.round(basic()*Number(s.pf))],["ESIC",Math.round(basic()*Number(s.esic))],["Professional Tax",professionalTax()],["Net Salary",net().toFixed(2)]];
   const csv=rows.map(r=>r.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(",")).join("\n");
   const blob=new Blob([csv],{type:"text/csv;charset=utf-8"}),a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=`Salary_Report_${months[mi].replace(/\s+/g,"_")}.csv`;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);
 }
@@ -193,8 +227,13 @@ function dailySalaryBreakdown(){
   rows+=`<div class="money net"><span>Daily Total Shown</span><b>₹${total.toFixed(2)}</b></div></div>`;
   return rows;
 }
-function professionalTax(){return 0;}
-function salary(){return monthbar()+`<div class="card"><div class="money"><span>Present</span><b>${count("Present")} days</b></div><div class="money"><span>Half Day</span><b>${count("Half Day")}</b></div><div class="money"><span>Absent</span><b>${count("Absent")}</b></div><div class="money"><span>Weekly Off</span><b>${Array.from({length:days()},(_,i)=>wo(i+1)).filter(Boolean).length}</b></div><div class="money"><span>Basic Earned</span><b>₹${basic().toFixed(2)}</b></div><div class="money"><span>Short Leave (${totalShortLeaveHours().toFixed(1)}h) <small style="color:#6b7280">(deduction included)</small></span><b>−₹${totalShortLeaveDeduction().toFixed(2)}</b></div><div class="money"><span>OT (${ot().toFixed(1)}h)</span><b>₹${totalOtPay().toFixed(2)}</b></div><div class="money"><span>🇮🇳 15 Aug / 26 Jan Duty (${specialHoursTotal().toFixed(1)}h)</span><b>₹${specialDutyPay().toFixed(2)}</b></div><div class="money"><span>🎉 Festival Duty (${festivalHoursTotal().toFixed(1)}h)</span><b>₹${festivalDutyPay().toFixed(2)}</b></div><div class="money"><span>PF ${Number(settings().pf)*100}%</span><b>−₹${Math.round(basic()*Number(settings().pf))}</b></div><div class="money"><span>ESIC ${Number(settings().esic)*100}%</span><b>−₹${Math.round(basic()*Number(settings().esic))}</b></div><div class="money"><span>Professional Tax</span><b>−₹${professionalTax()}</b></div><div class="money net"><span>NET SALARY</span><b>₹${net().toFixed(2)}</b></div></div>${dailySalaryBreakdown()}<div class="card"><h3 style="margin:2px 0 8px">📄 Monthly Report</h3><div class="note">Current month ka complete salary breakdown print ya CSV mein save/share kar sakte ho.</div><div class="report-grid" style="margin-top:9px"><button class="btn" onclick="printReport()">🖨️ Print / PDF</button><button class="btn" onclick="exportCSV()">📊 Export CSV</button></div></div>`}
+function professionalTax(){
+  // Gujarat Professional Tax: monthly salary/wages up to ₹12,000 = ₹0;
+  // more than ₹12,000 = ₹200/month (effective 01/04/2022).
+  const monthlyWages = gross();
+  return monthlyWages > 12000 ? 200 : 0;
+}
+function salary(){return monthbar()+`<div class="card"><div class="money"><span>Present</span><b>${count("Present")} days</b></div><div class="money"><span>Half Day</span><b>${count("Half Day")}</b></div><div class="money"><span>Absent</span><b>${count("Absent")}</b></div><div class="money"><span>Weekly Off</span><b>${Array.from({length:days()},(_,i)=>isWeekOff(i+1)).filter(Boolean).length}</b></div><div class="money"><span>Basic Earned</span><b>₹${basic().toFixed(2)}</b></div><div class="money"><span>Short Leave (${totalShortLeaveHours().toFixed(1)}h) <small style="color:#6b7280">(deduction included)</small></span><b>−₹${totalShortLeaveDeduction().toFixed(2)}</b></div><div class="money"><span>OT (${ot().toFixed(1)}h)</span><b>₹${totalOtPay().toFixed(2)}</b></div><div class="money"><span>🇮🇳 15 Aug / 26 Jan Duty (${specialHoursTotal().toFixed(1)}h)</span><b>₹${specialDutyPay().toFixed(2)}</b></div><div class="money"><span>🎉 Festival Duty (${festivalHoursTotal().toFixed(1)}h)</span><b>₹${festivalDutyPay().toFixed(2)}</b></div><div class="money"><span>PF ${Number(settings().pf)*100}%</span><b>−₹${Math.round(basic()*Number(settings().pf))}</b></div><div class="money"><span>ESIC ${Number(settings().esic)*100}%</span><b>−₹${Math.round(basic()*Number(settings().esic))}</b></div><div class="money"><span>Professional Tax</span><b>−₹${professionalTax()}</b></div><div class="money net"><span>NET SALARY</span><b>₹${net().toFixed(2)}</b></div></div>${dailySalaryBreakdown()}<div class="card"><h3 style="margin:2px 0 8px">📄 Monthly Report</h3><div class="note">Current month ka complete salary breakdown print ya CSV mein save/share kar sakte ho.</div><div class="report-grid" style="margin-top:9px"><button class="btn" onclick="printReport()">🖨️ Print / PDF</button><button class="btn" onclick="exportCSV()">📊 Export CSV</button></div></div>`}
 function settingsScreen(){
 const s=settings();
 return monthbar()+`<div class="card"><h3 style="margin:4px 0 12px">⚙️ Salary Profile</h3>
@@ -204,7 +243,8 @@ return monthbar()+`<div class="card"><h3 style="margin:4px 0 12px">⚙️ Salary
 <div class="money"><span>Normal OT / Hour</span><input id="sOt" type="number" step=".5" value="${s.otRate}" style="width:140px"></div>
 <div class="money"><span>PF %</span><input id="sPf" type="number" step=".01" value="${Number(s.pf)*100}" style="width:140px"></div>
 <div class="money"><span>ESIC %</span><input id="sEsic" type="number" step=".01" value="${Number(s.esic)*100}" style="width:140px"></div>
-<div class="note" style="margin:8px 0">OT rule: Weekly Off par OT hours ki koi limit nahi hai — har OT hour ka rate Daily Salary ÷ 8 hoga. Normal working day par below 8 hours = normal OT rate; 8 hours or more = Daily Salary ÷ 8 per OT hour.<br>Professional Tax is disabled in this app configuration.</div>
+<div class="money"><span><b>📅 Month-wise Weekly Off</b><small style="display:block;color:#6b7280">Har month ka Weekly Off yahin se set karo. Auto = existing default rule.</small></span></div><div style="display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:5px"><label style="font-size:11px;color:#374151">September 2026<select style="margin-top:3px" onchange="setWeeklyOff(this.value,0)"><option value="auto" ${weeklyOffDay(0)===null?"selected":""}>Auto (existing default)</option><option value="0" ${weeklyOffDay(0)===0?"selected":""}>Sunday</option><option value="1" ${weeklyOffDay(0)===1?"selected":""}>Monday</option><option value="2" ${weeklyOffDay(0)===2?"selected":""}>Tuesday</option><option value="3" ${weeklyOffDay(0)===3?"selected":""}>Wednesday</option><option value="4" ${weeklyOffDay(0)===4?"selected":""}>Thursday</option><option value="5" ${weeklyOffDay(0)===5?"selected":""}>Friday</option><option value="6" ${weeklyOffDay(0)===6?"selected":""}>Saturday</option></select></label><label style="font-size:11px;color:#374151">October 2026<select style="margin-top:3px" onchange="setWeeklyOff(this.value,1)"><option value="auto" ${weeklyOffDay(1)===null?"selected":""}>Auto (existing default)</option><option value="0" ${weeklyOffDay(1)===0?"selected":""}>Sunday</option><option value="1" ${weeklyOffDay(1)===1?"selected":""}>Monday</option><option value="2" ${weeklyOffDay(1)===2?"selected":""}>Tuesday</option><option value="3" ${weeklyOffDay(1)===3?"selected":""}>Wednesday</option><option value="4" ${weeklyOffDay(1)===4?"selected":""}>Thursday</option><option value="5" ${weeklyOffDay(1)===5?"selected":""}>Friday</option><option value="6" ${weeklyOffDay(1)===6?"selected":""}>Saturday</option></select></label><label style="font-size:11px;color:#374151">November 2026<select style="margin-top:3px" onchange="setWeeklyOff(this.value,2)"><option value="auto" ${weeklyOffDay(2)===null?"selected":""}>Auto (existing default)</option><option value="0" ${weeklyOffDay(2)===0?"selected":""}>Sunday</option><option value="1" ${weeklyOffDay(2)===1?"selected":""}>Monday</option><option value="2" ${weeklyOffDay(2)===2?"selected":""}>Tuesday</option><option value="3" ${weeklyOffDay(2)===3?"selected":""}>Wednesday</option><option value="4" ${weeklyOffDay(2)===4?"selected":""}>Thursday</option><option value="5" ${weeklyOffDay(2)===5?"selected":""}>Friday</option><option value="6" ${weeklyOffDay(2)===6?"selected":""}>Saturday</option></select></label><label style="font-size:11px;color:#374151">December 2026<select style="margin-top:3px" onchange="setWeeklyOff(this.value,3)"><option value="auto" ${weeklyOffDay(3)===null?"selected":""}>Auto (existing default)</option><option value="0" ${weeklyOffDay(3)===0?"selected":""}>Sunday</option><option value="1" ${weeklyOffDay(3)===1?"selected":""}>Monday</option><option value="2" ${weeklyOffDay(3)===2?"selected":""}>Tuesday</option><option value="3" ${weeklyOffDay(3)===3?"selected":""}>Wednesday</option><option value="4" ${weeklyOffDay(3)===4?"selected":""}>Thursday</option><option value="5" ${weeklyOffDay(3)===5?"selected":""}>Friday</option><option value="6" ${weeklyOffDay(3)===6?"selected":""}>Saturday</option></select></label><label style="font-size:11px;color:#374151">January 2027<select style="margin-top:3px" onchange="setWeeklyOff(this.value,4)"><option value="auto" ${weeklyOffDay(4)===null?"selected":""}>Auto (existing default)</option><option value="0" ${weeklyOffDay(4)===0?"selected":""}>Sunday</option><option value="1" ${weeklyOffDay(4)===1?"selected":""}>Monday</option><option value="2" ${weeklyOffDay(4)===2?"selected":""}>Tuesday</option><option value="3" ${weeklyOffDay(4)===3?"selected":""}>Wednesday</option><option value="4" ${weeklyOffDay(4)===4?"selected":""}>Thursday</option><option value="5" ${weeklyOffDay(4)===5?"selected":""}>Friday</option><option value="6" ${weeklyOffDay(4)===6?"selected":""}>Saturday</option></select></label><label style="font-size:11px;color:#374151">February 2027<select style="margin-top:3px" onchange="setWeeklyOff(this.value,5)"><option value="auto" ${weeklyOffDay(5)===null?"selected":""}>Auto (existing default)</option><option value="0" ${weeklyOffDay(5)===0?"selected":""}>Sunday</option><option value="1" ${weeklyOffDay(5)===1?"selected":""}>Monday</option><option value="2" ${weeklyOffDay(5)===2?"selected":""}>Tuesday</option><option value="3" ${weeklyOffDay(5)===3?"selected":""}>Wednesday</option><option value="4" ${weeklyOffDay(5)===4?"selected":""}>Thursday</option><option value="5" ${weeklyOffDay(5)===5?"selected":""}>Friday</option><option value="6" ${weeklyOffDay(5)===6?"selected":""}>Saturday</option></select></label><label style="font-size:11px;color:#374151">March 2027<select style="margin-top:3px" onchange="setWeeklyOff(this.value,6)"><option value="auto" ${weeklyOffDay(6)===null?"selected":""}>Auto (existing default)</option><option value="0" ${weeklyOffDay(6)===0?"selected":""}>Sunday</option><option value="1" ${weeklyOffDay(6)===1?"selected":""}>Monday</option><option value="2" ${weeklyOffDay(6)===2?"selected":""}>Tuesday</option><option value="3" ${weeklyOffDay(6)===3?"selected":""}>Wednesday</option><option value="4" ${weeklyOffDay(6)===4?"selected":""}>Thursday</option><option value="5" ${weeklyOffDay(6)===5?"selected":""}>Friday</option><option value="6" ${weeklyOffDay(6)===6?"selected":""}>Saturday</option></select></label><label style="font-size:11px;color:#374151">April 2027<select style="margin-top:3px" onchange="setWeeklyOff(this.value,7)"><option value="auto" ${weeklyOffDay(7)===null?"selected":""}>Auto (existing default)</option><option value="0" ${weeklyOffDay(7)===0?"selected":""}>Sunday</option><option value="1" ${weeklyOffDay(7)===1?"selected":""}>Monday</option><option value="2" ${weeklyOffDay(7)===2?"selected":""}>Tuesday</option><option value="3" ${weeklyOffDay(7)===3?"selected":""}>Wednesday</option><option value="4" ${weeklyOffDay(7)===4?"selected":""}>Thursday</option><option value="5" ${weeklyOffDay(7)===5?"selected":""}>Friday</option><option value="6" ${weeklyOffDay(7)===6?"selected":""}>Saturday</option></select></label><label style="font-size:11px;color:#374151">May 2027<select style="margin-top:3px" onchange="setWeeklyOff(this.value,8)"><option value="auto" ${weeklyOffDay(8)===null?"selected":""}>Auto (existing default)</option><option value="0" ${weeklyOffDay(8)===0?"selected":""}>Sunday</option><option value="1" ${weeklyOffDay(8)===1?"selected":""}>Monday</option><option value="2" ${weeklyOffDay(8)===2?"selected":""}>Tuesday</option><option value="3" ${weeklyOffDay(8)===3?"selected":""}>Wednesday</option><option value="4" ${weeklyOffDay(8)===4?"selected":""}>Thursday</option><option value="5" ${weeklyOffDay(8)===5?"selected":""}>Friday</option><option value="6" ${weeklyOffDay(8)===6?"selected":""}>Saturday</option></select></label><label style="font-size:11px;color:#374151">June 2027<select style="margin-top:3px" onchange="setWeeklyOff(this.value,9)"><option value="auto" ${weeklyOffDay(9)===null?"selected":""}>Auto (existing default)</option><option value="0" ${weeklyOffDay(9)===0?"selected":""}>Sunday</option><option value="1" ${weeklyOffDay(9)===1?"selected":""}>Monday</option><option value="2" ${weeklyOffDay(9)===2?"selected":""}>Tuesday</option><option value="3" ${weeklyOffDay(9)===3?"selected":""}>Wednesday</option><option value="4" ${weeklyOffDay(9)===4?"selected":""}>Thursday</option><option value="5" ${weeklyOffDay(9)===5?"selected":""}>Friday</option><option value="6" ${weeklyOffDay(9)===6?"selected":""}>Saturday</option></select></label><label style="font-size:11px;color:#374151">July 2027<select style="margin-top:3px" onchange="setWeeklyOff(this.value,10)"><option value="auto" ${weeklyOffDay(10)===null?"selected":""}>Auto (existing default)</option><option value="0" ${weeklyOffDay(10)===0?"selected":""}>Sunday</option><option value="1" ${weeklyOffDay(10)===1?"selected":""}>Monday</option><option value="2" ${weeklyOffDay(10)===2?"selected":""}>Tuesday</option><option value="3" ${weeklyOffDay(10)===3?"selected":""}>Wednesday</option><option value="4" ${weeklyOffDay(10)===4?"selected":""}>Thursday</option><option value="5" ${weeklyOffDay(10)===5?"selected":""}>Friday</option><option value="6" ${weeklyOffDay(10)===6?"selected":""}>Saturday</option></select></label><label style="font-size:11px;color:#374151">August 2027<select style="margin-top:3px" onchange="setWeeklyOff(this.value,11)"><option value="auto" ${weeklyOffDay(11)===null?"selected":""}>Auto (existing default)</option><option value="0" ${weeklyOffDay(11)===0?"selected":""}>Sunday</option><option value="1" ${weeklyOffDay(11)===1?"selected":""}>Monday</option><option value="2" ${weeklyOffDay(11)===2?"selected":""}>Tuesday</option><option value="3" ${weeklyOffDay(11)===3?"selected":""}>Wednesday</option><option value="4" ${weeklyOffDay(11)===4?"selected":""}>Thursday</option><option value="5" ${weeklyOffDay(11)===5?"selected":""}>Friday</option><option value="6" ${weeklyOffDay(11)===6?"selected":""}>Saturday</option></select></label><label style="font-size:11px;color:#374151">September 2027<select style="margin-top:3px" onchange="setWeeklyOff(this.value,12)"><option value="auto" ${weeklyOffDay(12)===null?"selected":""}>Auto (existing default)</option><option value="0" ${weeklyOffDay(12)===0?"selected":""}>Sunday</option><option value="1" ${weeklyOffDay(12)===1?"selected":""}>Monday</option><option value="2" ${weeklyOffDay(12)===2?"selected":""}>Tuesday</option><option value="3" ${weeklyOffDay(12)===3?"selected":""}>Wednesday</option><option value="4" ${weeklyOffDay(12)===4?"selected":""}>Thursday</option><option value="5" ${weeklyOffDay(12)===5?"selected":""}>Friday</option><option value="6" ${weeklyOffDay(12)===6?"selected":""}>Saturday</option></select></label><label style="font-size:11px;color:#374151">October 2027<select style="margin-top:3px" onchange="setWeeklyOff(this.value,13)"><option value="auto" ${weeklyOffDay(13)===null?"selected":""}>Auto (existing default)</option><option value="0" ${weeklyOffDay(13)===0?"selected":""}>Sunday</option><option value="1" ${weeklyOffDay(13)===1?"selected":""}>Monday</option><option value="2" ${weeklyOffDay(13)===2?"selected":""}>Tuesday</option><option value="3" ${weeklyOffDay(13)===3?"selected":""}>Wednesday</option><option value="4" ${weeklyOffDay(13)===4?"selected":""}>Thursday</option><option value="5" ${weeklyOffDay(13)===5?"selected":""}>Friday</option><option value="6" ${weeklyOffDay(13)===6?"selected":""}>Saturday</option></select></label><label style="font-size:11px;color:#374151">November 2027<select style="margin-top:3px" onchange="setWeeklyOff(this.value,14)"><option value="auto" ${weeklyOffDay(14)===null?"selected":""}>Auto (existing default)</option><option value="0" ${weeklyOffDay(14)===0?"selected":""}>Sunday</option><option value="1" ${weeklyOffDay(14)===1?"selected":""}>Monday</option><option value="2" ${weeklyOffDay(14)===2?"selected":""}>Tuesday</option><option value="3" ${weeklyOffDay(14)===3?"selected":""}>Wednesday</option><option value="4" ${weeklyOffDay(14)===4?"selected":""}>Thursday</option><option value="5" ${weeklyOffDay(14)===5?"selected":""}>Friday</option><option value="6" ${weeklyOffDay(14)===6?"selected":""}>Saturday</option></select></label><label style="font-size:11px;color:#374151">December 2027<select style="margin-top:3px" onchange="setWeeklyOff(this.value,15)"><option value="auto" ${weeklyOffDay(15)===null?"selected":""}>Auto (existing default)</option><option value="0" ${weeklyOffDay(15)===0?"selected":""}>Sunday</option><option value="1" ${weeklyOffDay(15)===1?"selected":""}>Monday</option><option value="2" ${weeklyOffDay(15)===2?"selected":""}>Tuesday</option><option value="3" ${weeklyOffDay(15)===3?"selected":""}>Wednesday</option><option value="4" ${weeklyOffDay(15)===4?"selected":""}>Thursday</option><option value="5" ${weeklyOffDay(15)===5?"selected":""}>Friday</option><option value="6" ${weeklyOffDay(15)===6?"selected":""}>Saturday</option></select></label></div><div class="note" style="margin-top:8px">Auto par existing rule rahega: Sep–Dec Saturday • Jan–Apr Monday • May–Aug Sunday. Kisi month me day change karoge to us month ka selected weekday automatically Weekly Off hoga. Attendance dropdown ka Weekly Off option bhi available rahega.</div>
+<div class="note" style="margin:8px 0">OT rule: Weekly Off par OT hours ki koi limit nahi hai — har OT hour ka rate Daily Salary ÷ 8 hoga. Normal working day par below 8 hours = normal OT rate; 8 hours or more = Daily Salary ÷ 8 per OT hour.<br>Professional Tax: Gujarat rule enabled — ₹0 up to ₹12,000/month and ₹200/month above ₹12,000.</div>
 <button class="btn wide" onclick="saveSettings()">💾 Save Profile</button>
 <button class="btn wide" style="margin-top:7px" onclick="addProfile()">➕ Add Friend Profile</button>
 <div style="display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:7px"><button class="btn" onclick="backupData()">💾 Backup Data</button><button class="btn" onclick="shareData()">📤 Share Data</button><button class="btn" onclick="document.getElementById('restoreFile').click()">♻️ Restore Data</button><button class="btn" onclick="shareSummary()">📊 Share Summary</button></div>
@@ -214,14 +254,33 @@ return monthbar()+`<div class="card"><h3 style="margin:4px 0 12px">⚙️ Salary
 <div class="card note">Each profile has separate attendance and salary data. Changing profiles does not mix their records.</div>`;
 }
 
-function backupData(){
-  const payload={version:"V15",exportedAt:new Date().toISOString(),profiles,activeProfile,data};
-  const blob=new Blob([JSON.stringify(payload,null,2)],{type:"application/json"});
-  const a=document.createElement("a");
-  a.href=URL.createObjectURL(blob);
-  a.download="AttendanceSalary_Backup_"+new Date().toISOString().slice(0,10)+".json";
-  document.body.appendChild(a);a.click();a.remove();
-  setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+async function backupData(){
+  const payload={version:"V16",app:"Attendance & Salary",exportedAt:new Date().toISOString(),profiles,activeProfile,data};
+  const json=JSON.stringify(payload,null,2);
+  const name="AttendanceSalary_Backup_"+new Date().toISOString().slice(0,10)+".json";
+  const blob=new Blob([json],{type:"application/json"});
+  const file=new File([blob],name,{type:"application/json"});
+  try{
+    if(navigator.share && (!navigator.canShare || navigator.canShare({files:[file]}))){
+      await navigator.share({
+        title:"Attendance & Salary Backup",
+        text:"Is backup file ko Google Drive, WhatsApp ya kisi safe location par save kar do. Baad mein Restore Data se wapas la sakte ho.",
+        files:[file]
+      });
+      return;
+    }
+  }catch(e){
+    if(e&&e.name==="AbortError")return;
+  }
+  try{
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement("a");
+    a.href=url;a.download=name;document.body.appendChild(a);a.click();a.remove();
+    setTimeout(()=>URL.revokeObjectURL(url),1500);
+    alert("Backup file ban gayi ✓\n\nIs file ko Google Drive ya phone ke safe folder mein zaroor save kar lena.");
+  }catch(e){
+    alert("Backup file create nahi ho paayi. Chrome ko file/download permission check karo.");
+  }
 }
 async function shareData(){
   const payload={version:1,app:"Attendance & Salary",exportedAt:new Date().toISOString(),profiles,activeProfile,data};
@@ -237,8 +296,8 @@ async function shareData(){
   alert("Share option phone par available nahi tha, isliye shareable backup file download kar di hai. Is file ko WhatsApp/Drive etc. par bhej sakte ho.");
 }
 function shareSummary(){
-  const p=count("Present"),h=count("Half Day"),a=count("Absent"),w=Array.from({length:days()},(_,i)=>wo(i+1)).filter(Boolean).length;
-  const txt=`Attendance & Salary — ${months[mi]}\nProfile: ${settings().name}\nPresent: ${p} days\nHalf Day: ${h}\nAbsent: ${a}\nWeekly Off: ${w}\nOT: ${ot().toFixed(1)} h / ₹${totalOtPay().toFixed(2)}\nFestival Duty: ${festivalHoursTotal().toFixed(1)} h / ₹${festivalDutyPay().toFixed(2)}\nBasic: ₹${basic().toFixed(2)}\nPF: ₹${Math.round(basic()*Number(settings().pf))}\nESIC: ₹${Math.round(basic()*Number(settings().esic))}\nNet Salary: ₹${net().toFixed(2)}`;
+  const p=count("Present"),h=count("Half Day"),a=count("Absent"),w=Array.from({length:days()},(_,i)=>isWeekOff(i+1)).filter(Boolean).length;
+  const txt=`Attendance & Salary — ${months[mi]}\nProfile: ${settings().name}\nPresent: ${p} days\nHalf Day: ${h}\nAbsent: ${a}\nWeekly Off: ${w}\nOT: ${ot().toFixed(1)} h / ₹${totalOtPay().toFixed(2)}\nFestival Duty: ${festivalHoursTotal().toFixed(1)} h / ₹${festivalDutyPay().toFixed(2)}\nBasic: ₹${basic().toFixed(2)}\nPF: ₹${Math.round(basic()*Number(settings().pf))}\nESIC: ₹${Math.round(basic()*Number(settings().esic))}\nProfessional Tax: ₹${professionalTax()}\nNet Salary: ₹${net().toFixed(2)}`;
   if(navigator.share){navigator.share({title:`Salary Summary — ${months[mi]}`,text:txt}).catch(e=>{});}else{navigator.clipboard?.writeText(txt);alert("Summary copy kar diya gaya hai. Ab WhatsApp/any app mein paste karke share kar sakte ho.");}
 }
 function restoreData(file){
@@ -253,7 +312,7 @@ function restoreData(file){
       if(!profiles.some(p=>p.id===activeProfile))activeProfile=profiles[0].id;
       data=x.data||{};
       saveProfiles();
-      localStorage.setItem("attendance_salary_data_v4",JSON.stringify(data));
+      appStorage.setItem("attendance_salary_data_v4",JSON.stringify(data));
       alert("Backup restored successfully ✓");
       render();
     }catch(e){alert("Backup file valid nahi hai.");}
@@ -271,7 +330,7 @@ s.esic=(Number(document.getElementById("sEsic").value)||.75)/100;
 saveProfiles();render();
 }
 function switchProfile(id){
-activeProfile=id;localStorage.setItem("attendance_salary_active_profile",id);render();
+activeProfile=id;appStorage.setItem("attendance_salary_active_profile",id);render();
 }
 function addProfile(){
 const name=prompt("Friend/Profile name?");
@@ -312,8 +371,9 @@ function upd(d,k,v){
   render();
 }
 function chg(n){mi=Math.max(0,Math.min(months.length-1,mi+n));render()}
+function goToday(){const i=months.indexOf(currentMonthLabel);if(i>=0){mi=i;render()}}
 function go(s){screen=s;render()}
-function render(){document.getElementById("root").innerHTML=screen===0?home():screen===1?attendance():screen===2?salary():settingsScreen();document.getElementById("profileName").textContent="Offline mobile tracker • "+settings().name;[0,1,2,3].forEach(i=>document.getElementById("n"+i).classList.toggle("active",i===screen))}
+function render(){try{document.getElementById("root").innerHTML=screen===0?home():screen===1?attendance():screen===2?salary():settingsScreen();document.getElementById("profileName").textContent="Offline mobile tracker • "+settings().name;[0,1,2,3].forEach(i=>document.getElementById("n"+i).classList.toggle("active",i===screen))}catch(e){console.error("Attendance & Salary render error:",e);document.getElementById("root").innerHTML='<div class="card"><h3>⚠️ App data error</h3><div class="note">App data read karte waqt problem aayi. Settings se Backup/Restore use karke data recover kiya ja sakta hai.</div><button class="btn wide" style="margin-top:10px" onclick="location.reload()">🔄 Reload App</button></div>'}}
 n0.onclick=()=>go(0);n1.onclick=()=>go(1);n2.onclick=()=>go(2);n3.onclick=()=>go(3);render();
 if("serviceWorker" in navigator)navigator.serviceWorker.register("sw.js").catch(()=>{});
 
