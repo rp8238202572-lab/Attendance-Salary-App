@@ -254,14 +254,33 @@ return monthbar()+`<div class="card"><h3 style="margin:4px 0 12px">⚙️ Salary
 <div class="card note">Each profile has separate attendance and salary data. Changing profiles does not mix their records.</div>`;
 }
 
-function backupData(){
-  const payload={version:"V15",exportedAt:new Date().toISOString(),profiles,activeProfile,data};
-  const blob=new Blob([JSON.stringify(payload,null,2)],{type:"application/json"});
-  const a=document.createElement("a");
-  a.href=URL.createObjectURL(blob);
-  a.download="AttendanceSalary_Backup_"+new Date().toISOString().slice(0,10)+".json";
-  document.body.appendChild(a);a.click();a.remove();
-  setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+async function backupData(){
+  const payload={version:"V16",app:"Attendance & Salary",exportedAt:new Date().toISOString(),profiles,activeProfile,data};
+  const json=JSON.stringify(payload,null,2);
+  const name="AttendanceSalary_Backup_"+new Date().toISOString().slice(0,10)+".json";
+  const blob=new Blob([json],{type:"application/json"});
+  const file=new File([blob],name,{type:"application/json"});
+  try{
+    if(navigator.share && (!navigator.canShare || navigator.canShare({files:[file]}))){
+      await navigator.share({
+        title:"Attendance & Salary Backup",
+        text:"Is backup file ko Google Drive, WhatsApp ya kisi safe location par save kar do. Baad mein Restore Data se wapas la sakte ho.",
+        files:[file]
+      });
+      return;
+    }
+  }catch(e){
+    if(e&&e.name==="AbortError")return;
+  }
+  try{
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement("a");
+    a.href=url;a.download=name;document.body.appendChild(a);a.click();a.remove();
+    setTimeout(()=>URL.revokeObjectURL(url),1500);
+    alert("Backup file ban gayi ✓\n\nIs file ko Google Drive ya phone ke safe folder mein zaroor save kar lena.");
+  }catch(e){
+    alert("Backup file create nahi ho paayi. Chrome ko file/download permission check karo.");
+  }
 }
 async function shareData(){
   const payload={version:1,app:"Attendance & Salary",exportedAt:new Date().toISOString(),profiles,activeProfile,data};
