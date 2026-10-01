@@ -278,7 +278,7 @@ async function backupData(){
 window.nativeBackupSuccess=function(){alert("Backup file save ho gayi ✓");};
 window.nativeFileError=function(msg){alert("File operation failed: "+msg);};
 
-function shareData(){
+async function shareData(){
   const payload={version:1,app:"Attendance & Salary",exportedAt:new Date().toISOString(),profiles,activeProfile,data};
   const blob=new Blob([JSON.stringify(payload,null,2)],{type:"application/json"});
   const file=new File([blob],"AttendanceSalary_Shared_Data.json",{type:"application/json"});
@@ -288,7 +288,7 @@ function shareData(){
       return;
     }
   }catch(e){if(e&&e.name==="AbortError")return;}
-  const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="AttendanceSalary_Shared_Data.json";a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+  const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="AttendanceSalary_Shared_Data.json";document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),1000);
   alert("Share option phone par available nahi tha, isliye shareable backup file download kar di hai. Is file ko WhatsApp/Drive etc. par bhej sakte ho.");
 }
 function shareSummary(){
