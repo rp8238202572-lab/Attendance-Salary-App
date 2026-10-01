@@ -407,7 +407,7 @@ if("serviceWorker" in navigator){
       location.reload();
     }
   });
-  navigator.serviceWorker.register("./sw.js").catch(()=>{});
+  navigator.serviceWorker.register("./sw.js?v=20261001").then(reg=>reg.update()).catch(()=>{});
 }
 
 let deferredInstall=null;
