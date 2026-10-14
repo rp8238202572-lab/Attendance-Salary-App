@@ -99,9 +99,9 @@ let data=safeJson(appStorage.getItem("attendance_salary_data_v4"),{});
 function settings(){return profiles.find(p=>p.id===activeProfile)||profiles[0]}
 function saveProfiles(){appStorage.setItem("attendance_salary_profiles",JSON.stringify(profiles));appStorage.setItem("attendance_salary_active_profile",activeProfile)}
 // Migrate only profiles still using the previous default salary; keep custom rates unchanged.
-let defaultRateMigrated=false; profiles.forEach(p=>{if(Number(p.rate)===512.5){p.rate=524.5;defaultRateMigrated=true;}}); if(defaultRateMigrated) saveProfiles();
+let defaultRateMigrated=false; profiles.forEach(p=>{if(Number(p.rate)===512.5){p.previousRate=512.5;p.rate=524.5;defaultRateMigrated=true;}else if(Number(p.rate)===524.5 && !(Number(p.previousRate)>0)){p.previousRate=512.5;defaultRateMigrated=true;}}); if(defaultRateMigrated) saveProfiles();
 
-const rate=()=>Number(settings().rate)||524.5;
+function rate(){const s=settings();const oldRate=Number(s.previousRate);if(mi===0&&oldRate>0)return oldRate;return Number(s.rate)||524.5;}
 const otRate=()=>Number(settings().otRate)||35;
 function otPayForDay(d){
   const h=parseFloat(get(d).ot)||0;
@@ -242,7 +242,7 @@ const s=settings();
 return monthbar()+`<div class="card"><h3 style="margin:4px 0 12px">⚙️ Salary Profile</h3>
 <div class="money"><span>Active Profile</span><select id="profileSelect" style="width:180px" onchange="switchProfile(this.value)">${profiles.map(p=>`<option value="${p.id}" ${p.id===activeProfile?"selected":""}>${p.name}</option>`).join("")}</select></div>
 <div class="money"><span>Profile Name</span><input id="pName" value="${s.name}" style="width:180px"></div>
-<div class="money"><span>Daily Salary</span><input id="sRate" type="number" step=".5" value="${s.rate}" style="width:140px"></div>
+<div class="money"><span>Daily Salary <small style="display:block;color:#6b7280">₹524.50 from October 2026; previous months keep their old rate</small></span><input id="sRate" type="number" step=".5" value="${s.rate}" style="width:140px"></div>
 <div class="money"><span>Normal OT / Hour</span><input id="sOt" type="number" step=".5" value="${s.otRate}" style="width:140px"></div>
 <div class="money"><span>PF %</span><input id="sPf" type="number" step=".01" value="${Number(s.pf)*100}" style="width:140px"></div>
 <div class="money"><span>ESIC %</span><input id="sEsic" type="number" step=".01" value="${Number(s.esic)*100}" style="width:140px"></div>
