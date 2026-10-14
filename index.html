@@ -90,7 +90,7 @@ function specialBase(){
 const currentMonthLabel=(()=>{const n=new Date();return n.toLocaleString("en-US",{month:"long"})+" "+n.getFullYear()})();
 let mi=Math.max(0,months.indexOf(currentMonthLabel)),screen=0;
 function safeJson(raw,fallback){try{return raw==null||raw===""?fallback:JSON.parse(raw)}catch(e){return fallback}}
-const defaultProfiles=[{id:"p1",name:"My Profile",rate:512.5,otRate:35,pf:.12,esic:.0075}];
+const defaultProfiles=[{id:"p1",name:"My Profile",rate:524.5,otRate:35,pf:.12,esic:.0075}];
 let profiles=safeJson(appStorage.getItem("attendance_salary_profiles"),null);
 if(!Array.isArray(profiles)||!profiles.length) profiles=defaultProfiles;
 let activeProfile=appStorage.getItem("attendance_salary_active_profile")||profiles[0].id;
@@ -98,8 +98,10 @@ if(!profiles.some(p=>p.id===activeProfile)) activeProfile=profiles[0].id;
 let data=safeJson(appStorage.getItem("attendance_salary_data_v4"),{});
 function settings(){return profiles.find(p=>p.id===activeProfile)||profiles[0]}
 function saveProfiles(){appStorage.setItem("attendance_salary_profiles",JSON.stringify(profiles));appStorage.setItem("attendance_salary_active_profile",activeProfile)}
+// Migrate only profiles still using the previous default salary; keep custom rates unchanged.
+let defaultRateMigrated=false; profiles.forEach(p=>{if(Number(p.rate)===512.5){p.rate=524.5;defaultRateMigrated=true;}}); if(defaultRateMigrated) saveProfiles();
 
-const rate=()=>Number(settings().rate)||512.5;
+const rate=()=>Number(settings().rate)||524.5;
 const otRate=()=>Number(settings().otRate)||35;
 function otPayForDay(d){
   const h=parseFloat(get(d).ot)||0;
@@ -247,7 +249,7 @@ return monthbar()+`<div class="card"><h3 style="margin:4px 0 12px">⚙️ Salary
 <div class="note" style="margin:8px 0">OT rule: Weekly Off par OT hours ki koi limit nahi hai — har OT hour ka rate Daily Salary ÷ 8 hoga. Normal working day par below 8 hours = normal OT rate; 8 hours or more = Daily Salary ÷ 8 per OT hour.<br>Professional Tax: Gujarat rule enabled — ₹0 up to ₹12,000/month and ₹200/month above ₹12,000.</div>
 <button class="btn wide" onclick="saveSettings()">💾 Save Profile</button>
 <button class="btn wide" style="margin-top:7px" onclick="addProfile()">➕ Add Friend Profile</button>
-<div style="display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:7px"><button class="btn" onclick="backupData()">💾 Backup Data</button><button class="btn" onclick="shareData()">📤 Share Data</button><button class="btn" onclick="document.getElementById('restoreFile').click()">♻️ Restore Data</button><button class="btn" onclick="shareSummary()">📊 Share Summary</button></div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:7px"><button class="btn" type="button" onclick="backupData()">💾 Backup Data</button><button class="btn" onclick="shareData()">📤 Share Data</button><button class="btn" onclick="restorePicker()">♻️ Restore Data</button><button class="btn" onclick="shareSummary()">📊 Share Summary</button></div>
 <input id="restoreFile" type="file" accept="application/json,.json" style="display:none" onchange="restoreData(this.files[0])">
 <div class="note" style="margin-top:8px">Backup mein profiles aur attendance records save honge. Phone change/reinstall karne se pehle backup rakh lena.</div></div>
 <div class="card"><h3 style="margin:4px 0 10px">📊 Month History — ${s.name}</h3>${months.map((m,i)=>{let old=mi;mi=i;let n=net(),p=count("Present"),o=ot(),op=totalOtPay();mi=old;return `<div class="money"><span>${m}<small style="color:#6b7280"> • ${p} present • ${o.toFixed(1)}h OT</small></span><b>₹${n.toFixed(0)}</b></div>`}).join("")}</div>
@@ -273,34 +275,38 @@ function backupReminder(){
 }
 
 async function backupData(){
-  const payload={version:"V17",app:"Attendance & Salary",exportedAt:new Date().toISOString(),profiles,activeProfile,data};
+  const payload={version:"V18",app:"Attendance & Salary",exportedAt:new Date().toISOString(),profiles,activeProfile,data};
   const json=JSON.stringify(payload,null,2);
   const name="AttendanceSalary_Backup_"+new Date().toISOString().slice(0,10)+".json";
-  const blob=new Blob([json],{type:"application/json"});
-  const file=new File([blob],name,{type:"application/json"});
+  if(window.AndroidStorage && typeof window.AndroidStorage.nativeBackup==="function"){
+    try{window.AndroidStorage.nativeBackup(name,json);}catch(e){alert("Backup start nahi ho paaya. App dobara kholkar try karo.");}
+    return;
+  }
   try{
-    if(navigator.share && (!navigator.canShare || navigator.canShare({files:[file]}))){
-      await navigator.share({
-        title:"Attendance & Salary Backup",
-        text:"Is backup file ko Google Drive ya kisi safe location par save kar do. Baad mein Restore Data se wapas la sakte ho.",
-        files:[file]
-      });
-      markBackupDone();
-      return;
+    if(navigator.share && typeof File!=="undefined"){
+      const file=new File([json],name,{type:"application/json"});
+      if(!navigator.canShare || navigator.canShare({files:[file]})){
+        await navigator.share({title:"Attendance & Salary Backup",text:"Backup file ko safe location par save kar do. Baad mein Restore Data se wapas la sakte ho.",files:[file]});
+        markBackupDone();return;
+      }
     }
-  }catch(e){
-    if(e&&e.name==="AbortError")return;
-  }
+  }catch(e){if(e&&e.name==="AbortError")return;}
   try{
+    const blob=new Blob([json],{type:"application/json"});
     const url=URL.createObjectURL(blob);
-    const a=document.createElement("a");
-    a.href=url;a.download=name;document.body.appendChild(a);a.click();a.remove();
-    setTimeout(()=>URL.revokeObjectURL(url),1500);
-    markBackupDone();
-    alert("Backup file ban gayi ✓\n\nIs file ko Google Drive ya phone ke safe folder mein zaroor save kar lena.");
-  }catch(e){
-    alert("Backup file create nahi ho paayi. Chrome ki file/download permission check karo.");
+    const a=document.createElement("a");a.href=url;a.download=name;document.body.appendChild(a);a.click();a.remove();
+    setTimeout(()=>URL.revokeObjectURL(url),1500);markBackupDone();
+    alert("Backup file download ke liye ready hai. File ko safe folder mein save kar lena.");
+  }catch(e){alert("Backup file create nahi ho paayi. Dobara try karo.");}
+}
+window.nativeBackupSuccess=function(){markBackupDone();alert("Backup file successfully save ho gayi.");};
+window.nativeFileError=function(message){alert("File operation fail hui: "+(message||"Unknown error"));};
+function restorePicker(){
+  if(window.AndroidStorage && typeof window.AndroidStorage.nativeRestore==="function"){
+    try{window.AndroidStorage.nativeRestore();}catch(e){alert("Restore file picker open nahi hua. App dobara kholkar try karo.");}
+    return;
   }
+  const input=document.getElementById("restoreFile");if(input){input.value="";input.click();}
 }
 async function shareData(){
   const payload={version:1,app:"Attendance & Salary",exportedAt:new Date().toISOString(),profiles,activeProfile,data};
@@ -320,26 +326,23 @@ function shareSummary(){
   const txt=`Attendance & Salary — ${months[mi]}\nProfile: ${settings().name}\nPresent: ${p} days\nHalf Day: ${h}\nAbsent: ${a}\nWeekly Off: ${w}\nOT: ${ot().toFixed(1)} h / ₹${totalOtPay().toFixed(2)}\nFestival Duty: ${festivalHoursTotal().toFixed(1)} h / ₹${festivalDutyPay().toFixed(2)}\nBasic: ₹${basic().toFixed(2)}\nPF: ₹${Math.round(basic()*Number(settings().pf))}\nESIC: ₹${Math.round(basic()*Number(settings().esic))}\nProfessional Tax: ₹${professionalTax()}\nNet Salary: ₹${net().toFixed(2)}`;
   if(navigator.share){navigator.share({title:`Salary Summary — ${months[mi]}`,text:txt}).catch(e=>{});}else{navigator.clipboard?.writeText(txt);alert("Summary copy kar diya gaya hai. Ab WhatsApp/any app mein paste karke share kar sakte ho.");}
 }
+function applyRestoreText(raw){
+  try{
+    const x=typeof raw==="string"?JSON.parse(raw):raw;
+    if(!x||!Array.isArray(x.profiles)||!x.profiles.length||!x.data||typeof x.data!=="object"||Array.isArray(x.data))throw new Error("Invalid backup");
+    profiles=x.profiles;activeProfile=x.activeProfile||profiles[0].id;
+    if(!profiles.some(p=>p.id===activeProfile))activeProfile=profiles[0].id;
+    data=x.data||{};saveProfiles();appStorage.setItem("attendance_salary_data_v4",JSON.stringify(data));
+    alert("Backup restored successfully.");render();
+  }catch(e){alert("Backup file valid nahi hai ya uska format supported nahi hai.");}
+}
+window.nativeRestoreData=function(json){applyRestoreText(json);};
 function restoreData(file){
-  if(!file)return;
-  const reader=new FileReader();
-  reader.onload=()=>{
-    try{
-      const x=JSON.parse(reader.result);
-      if(!Array.isArray(x.profiles)||!x.profiles.length||typeof x.data!=="object")throw new Error("Invalid backup");
-      profiles=x.profiles;
-      activeProfile=x.activeProfile||profiles[0].id;
-      if(!profiles.some(p=>p.id===activeProfile))activeProfile=profiles[0].id;
-      data=x.data||{};
-      saveProfiles();
-      appStorage.setItem("attendance_salary_data_v4",JSON.stringify(data));
-      alert("Backup restored successfully ✓");
-      render();
-    }catch(e){alert("Backup file valid nahi hai.");}
-  };
+  if(!file)return;const reader=new FileReader();
+  reader.onload=()=>applyRestoreText(reader.result);
+  reader.onerror=()=>alert("Backup file read nahi ho paayi. Dusri file select karke try karo.");
   reader.readAsText(file);
 }
-
 function saveSettings(){
 const s=settings();
 const rateInput=document.getElementById("sRate");
@@ -374,7 +377,7 @@ function addProfile(){
 const name=prompt("Friend/Profile name?");
 if(!name) return;
 const id="p"+Date.now();
-profiles.push({id,name:name.trim(),rate:512.5,otRate:35,pf:.12,esic:.0075});
+profiles.push({id,name:name.trim(),rate:524.5,otRate:35,pf:.12,esic:.0075});
 activeProfile=id;saveProfiles();render();
 }
 function shortLeaveInput(d,v){
@@ -425,7 +428,7 @@ if("serviceWorker" in navigator){
       location.reload();
     }
   });
-  navigator.serviceWorker.register("./sw.js?v=20261014").then(reg=>reg.update()).catch(()=>{});
+  navigator.serviceWorker.register("./sw.js?v=20261014-backupfix1").then(reg=>reg.update()).catch(()=>{});
 }
 
 let deferredInstall=null;
