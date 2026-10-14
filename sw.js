@@ -1,4 +1,4 @@
-const CACHE_NAME = "attendance-salary-v4";
+const CACHE_NAME = "attendance-salary-v5";
 const APP_SHELL = ["./", "./index.html", "./manifest.webmanifest"];
 
 // Always activate the newest service worker immediately.
