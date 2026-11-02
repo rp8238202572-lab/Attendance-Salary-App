@@ -432,7 +432,7 @@ if("serviceWorker" in navigator){
       location.reload();
     }
   });
-  navigator.serviceWorker.register("./sw.js?v=20261019-pt-basic-or-net").then(reg=>reg.update()).catch(()=>{});
+  navigator.serviceWorker.register("./sw.js?v=20261102-pt-net-threshold-fix").then(reg=>reg.update()).catch(()=>{});
 }
 
 let deferredInstall=null;
